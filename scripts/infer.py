@@ -12,7 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from models.baseline_cnn import BaselineCNN
 from utils.config import load_config
 
-def process_image(model, img_path, device, norm_min, norm_max):
+def process_image(model, img_path, device, norm_config):
     # Read image
     is_npy = img_path.lower().endswith('.npy')
     if is_npy:
@@ -26,8 +26,16 @@ def process_image(model, img_path, device, norm_min, norm_max):
     # Preprocess
     noisy_img = noisy_img.astype(np.float32)
     
-    if norm_max > norm_min:
-        noisy_img = (noisy_img - norm_min) / (norm_max - norm_min)
+    method = norm_config.get("method", "none")
+    if method == "minmax":
+        n_min = norm_config.get("min", 0.0)
+        n_max = norm_config.get("max", 1.0)
+        if n_max > n_min:
+            noisy_img = (noisy_img - n_min) / (n_max - n_min)
+    elif method == "zscore":
+        mean = norm_config.get("mean", 0.0)
+        std = norm_config.get("std", 1.0)
+        noisy_img = (noisy_img - mean) / (std + 1e-8)
         
     if noisy_img.ndim == 2:
         noisy_img = np.expand_dims(noisy_img, axis=-1)
@@ -44,8 +52,15 @@ def process_image(model, img_path, device, norm_min, norm_max):
     pred_img = preds.squeeze(0).cpu().numpy() # CHW
     pred_img = np.transpose(pred_img, (1, 2, 0)) # HWC
     
-    if norm_max > norm_min:
-        pred_img = pred_img * (norm_max - norm_min) + norm_min
+    if method == "minmax":
+        n_min = norm_config.get("min", 0.0)
+        n_max = norm_config.get("max", 1.0)
+        if n_max > n_min:
+            pred_img = pred_img * (n_max - n_min) + n_min
+    elif method == "zscore":
+        mean = norm_config.get("mean", 0.0)
+        std = norm_config.get("std", 1.0)
+        pred_img = pred_img * (std + 1e-8) + mean
         
     if pred_img.shape[-1] == 1:
         pred_img = pred_img.squeeze(-1)
@@ -96,10 +111,14 @@ def main():
         input_path = os.path.join(args.input, filename)
         output_path = os.path.join(args.output, filename)
         
+        norm_config = getattr(cfg.data, 'normalization', {"method": "none"})
+        if hasattr(norm_config, "__dict__"):
+            norm_dict = {k: v for k, v in norm_config.__dict__.items()}
+        else:
+            norm_dict = norm_config
+            
         try:
-            pred_img, is_npy = process_image(model, input_path, device, 
-                                             getattr(cfg.data, 'norm_min', 0.0), 
-                                             getattr(cfg.data, 'norm_max', 1.0))
+            pred_img, is_npy = process_image(model, input_path, device, norm_dict)
             
             # Save
             if is_npy:

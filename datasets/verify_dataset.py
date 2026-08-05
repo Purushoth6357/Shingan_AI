@@ -1,10 +1,11 @@
 import os
 import argparse
-# pyrefly: ignore [missing-import]
-import cv2
 import numpy as np
-import torch
-from dataset import ShinganDataset
+from tqdm import tqdm
+try:
+    import cv2
+except ImportError:
+    pass
 
 def verify_integrity(root_dir):
     print(f"--- Verifying Dataset Integrity: {root_dir} ---")
@@ -15,89 +16,95 @@ def verify_integrity(root_dir):
         print("ERROR: Missing GT or NoisyLR folders.")
         return False
         
-    gt_files = set(os.listdir(gt_dir))
+    gt_files = sorted(os.listdir(gt_dir))
     noisy_files = set(os.listdir(noisy_dir))
     
-    missing_in_gt = noisy_files - gt_files
-    missing_in_noisy = gt_files - noisy_files
-    
-    if missing_in_gt:
-        print(f"ERROR: {len(missing_in_gt)} files in NoisyLR are missing from GT. Samples: {list(missing_in_gt)[:5]}")
-        return False
+    missing_in_noisy = set(gt_files) - noisy_files
     if missing_in_noisy:
         print(f"ERROR: {len(missing_in_noisy)} files in GT are missing from NoisyLR. Samples: {list(missing_in_noisy)[:5]}")
         return False
         
-    print(f"[OK] Found {len(gt_files)} matching pairs.")
+    shapes = set()
+    channels = set()
+    dtypes = set()
     
-    # Check a few samples for resolution and channels
-    check_samples = list(gt_files)[:5]
-    for fname in check_samples:
+    min_vals = []
+    max_vals = []
+    means = []
+    variances = []
+    
+    corrupted_files = []
+    
+    print(f"Scanning {len(gt_files)} images to compute global statistics...")
+    
+    for fname in tqdm(gt_files):
         gt_path = os.path.join(gt_dir, fname)
-        noisy_path = os.path.join(noisy_dir, fname)
         
-        if fname.lower().endswith('.npy'):
-            gt_img = np.load(gt_path)
-            noisy_img = np.load(noisy_path)
-        else:
-            gt_img = cv2.imread(gt_path)
-            noisy_img = cv2.imread(noisy_path)
-        
-        if gt_img is None or noisy_img is None:
-            print(f"ERROR: Failed to read {fname}")
-            return False
+        try:
+            if fname.lower().endswith('.npy'):
+                img = np.load(gt_path)
+            else:
+                img = cv2.imread(gt_path, cv2.IMREAD_UNCHANGED)
+                if img is None:
+                    raise ValueError("cv2 failed to read image")
+                
+            shapes.add(img.shape[:2]) # H, W
+            dtypes.add(str(img.dtype))
             
-        if gt_img.shape != noisy_img.shape:
-            print(f"ERROR: Resolution mismatch for {fname}: GT {gt_img.shape} vs NoisyLR {noisy_img.shape}")
-            return False
+            if img.ndim == 2:
+                channels.add(1)
+            else:
+                channels.add(img.shape[2])
+                
+            min_vals.append(img.min())
+            max_vals.append(img.max())
+            means.append(img.mean())
+            variances.append(img.var())
+                
+        except Exception as e:
+            corrupted_files.append(fname)
             
-        if len(gt_img.shape) != 3 or gt_img.shape[2] != 3:
-            print(f"WARNING: Image {fname} might not be 3-channel RGB. Shape: {gt_img.shape}")
-            
-    print("[OK] Sample resolutions and channel counts match.")
-    return True
-
-def test_dataloader(root_dir):
-    print(f"\n--- Testing DataLoader ---")
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"Using device: {device}")
+    print("\nDataset Summary")
+    print("-" * 30)
+    print(f"Images           : {len(gt_files) - len(corrupted_files)}")
     
-    try:
-        dataset = ShinganDataset(root_dir=root_dir)
-        print(f"Dataset initialized with {len(dataset)} samples.")
+    shape_str = ", ".join([str(s) for s in shapes]) if shapes else "N/A"
+    print(f"Shape            : {shape_str}")
+    
+    channel_str = ", ".join([str(c) for c in channels]) if channels else "N/A"
+    print(f"Channels         : {channel_str}")
+    
+    dtype_str = ", ".join(dtypes) if dtypes else "N/A"
+    print(f"dtype            : {dtype_str}")
+    
+    if min_vals:
+        global_min = min(min_vals)
+        global_max = max(max_vals)
+        global_mean = np.mean(means)
+        global_std = np.sqrt(np.mean(variances))
         
-        if len(dataset) == 0:
-            print("Dataset is empty. Cannot test loading.")
-            return
-            
-        sample = dataset[0]
-        noisy_tensor = sample["NoisyLR"]
-        gt_tensor = sample["GT"]
-        fname = sample["filename"]
+        print(f"Global Min       : {global_min:.4f}")
+        print(f"Global Max       : {global_max:.4f}")
+        print(f"Mean             : {global_mean:.4f}")
+        print(f"Std              : {global_std:.4f}")
         
-        print(f"Loaded sample: {fname}")
-        print(f"NoisyLR shape: {noisy_tensor.shape}, dtype: {noisy_tensor.dtype}")
-        print(f"GT shape: {gt_tensor.shape}, dtype: {gt_tensor.dtype}")
+    print(f"Unique Shapes    : {len(shapes)}")
+    print(f"Corrupted Files  : {len(corrupted_files)}")
+    
+    if corrupted_files:
+        print(f"List of corrupted files: {corrupted_files[:10]}...")
         
-        print(f"NoisyLR pixel range: [{noisy_tensor.min().item():.4f}, {noisy_tensor.max().item():.4f}]")
-        print(f"GT pixel range: [{gt_tensor.min().item():.4f}, {gt_tensor.max().item():.4f}]")
+    if len(shapes) > 1:
+        print("\nWARNING: Dataset contains multiple shapes. Model might require resizing or cropping.")
         
-        # Test moving to device
-        noisy_tensor = noisy_tensor.to(device)
-        gt_tensor = gt_tensor.to(device)
-        print(f"[OK] Successfully moved tensors to {device}")
-        
-    except Exception as e:
-        print(f"ERROR during dataset loading: {e}")
+    return len(corrupted_files) == 0
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Verify Dataset Integrity and Loader")
+    parser = argparse.ArgumentParser(description="Verify Dataset Integrity and Compute Global Stats")
     parser.add_argument("--data_dir", type=str, default="datasets/hackathon_data", help="Path to dataset root")
     args = parser.parse_args()
     
     if not os.path.exists(args.data_dir):
         print(f"Dataset directory '{args.data_dir}' not found. Please place dataset files or override with --data_dir.")
     else:
-        is_valid = verify_integrity(args.data_dir)
-        if is_valid:
-            test_dataloader(args.data_dir)
+        verify_integrity(args.data_dir)

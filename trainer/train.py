@@ -24,11 +24,15 @@ def main():
     print(f"Using device: {device}")
 
     # Dataset & DataLoader
-    norm_min = getattr(cfg.data, 'norm_min', 0.0)
-    norm_max = getattr(cfg.data, 'norm_max', 1.0)
+    norm_config = getattr(cfg.data, 'normalization', {"method": "none"})
+    if hasattr(norm_config, "__dict__"):
+        # Convert Config object to dict if it was parsed as such
+        norm_dict = {k: v for k, v in norm_config.__dict__.items()}
+    else:
+        norm_dict = norm_config
     
-    train_dataset = ShinganDataset(cfg.data.train_dir, norm_min=norm_min, norm_max=norm_max)
-    val_dataset = ShinganDataset(cfg.data.val_dir, norm_min=norm_min, norm_max=norm_max)
+    train_dataset = ShinganDataset(cfg.data.train_dir, norm_config=norm_dict)
+    val_dataset = ShinganDataset(cfg.data.val_dir, norm_config=norm_dict)
     
     if args.subset:
         train_dataset.image_filenames = train_dataset.image_filenames[:args.subset]

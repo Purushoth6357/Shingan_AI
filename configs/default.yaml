@@ -7,8 +7,11 @@ data:
   test_dir: "datasets/test"
   batch_size: 16
   num_workers: 4
-  norm_min: -0.0026
-  norm_max: 1.3258
+  
+  normalization:
+    method: "minmax" # Options: none, minmax, zscore
+    min: -0.0026
+    max: 1.3258
 
 model:
   architecture: "cnn" # Options: cnn, hybrid

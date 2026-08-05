@@ -10,13 +10,12 @@ class ShinganDataset(Dataset):
     Dataset for Shingan AI: AI-Based Restoration of Degraded Images for Semiconductor Inspection.
     Expects a root directory with `GT` and `NoisyLR` subdirectories.
     """
-    def __init__(self, root_dir, transform=None, norm_min=0.0, norm_max=1.0):
+    def __init__(self, root_dir, transform=None, norm_config=None):
         self.root_dir = root_dir
         self.gt_dir = os.path.join(root_dir, "GT")
         self.noisy_dir = os.path.join(root_dir, "NoisyLR")
         self.transform = transform
-        self.norm_min = norm_min
-        self.norm_max = norm_max
+        self.norm_config = norm_config or {"method": "none"}
         
         if not os.path.exists(self.gt_dir) or not os.path.exists(self.noisy_dir):
             raise FileNotFoundError(f"Missing GT or NoisyLR directory in {root_dir}")
@@ -65,9 +64,19 @@ class ShinganDataset(Dataset):
             gt_img = gt_img.astype(np.float32)
             
             # Custom normalization using config parameters
-            if self.norm_max > self.norm_min:
-                noisy_img = (noisy_img - self.norm_min) / (self.norm_max - self.norm_min)
-                gt_img = (gt_img - self.norm_min) / (self.norm_max - self.norm_min)
+            method = self.norm_config.get("method", "none")
+            
+            if method == "minmax":
+                n_min = self.norm_config.get("min", 0.0)
+                n_max = self.norm_config.get("max", 1.0)
+                if n_max > n_min:
+                    noisy_img = (noisy_img - n_min) / (n_max - n_min)
+                    gt_img = (gt_img - n_min) / (n_max - n_min)
+            elif method == "zscore":
+                mean = self.norm_config.get("mean", 0.0)
+                std = self.norm_config.get("std", 1.0)
+                noisy_img = (noisy_img - mean) / (std + 1e-8)
+                gt_img = (gt_img - mean) / (std + 1e-8)
             
             # Handle 2D arrays by expanding to (H, W, 1) to simulate channels
             if noisy_img.ndim == 2:
