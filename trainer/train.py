@@ -131,9 +131,19 @@ def main():
     val_every = getattr(cfg.validation, 'every_n_epochs', 1)
     
     # Early stopping config
-    early_stop_cfg = getattr(cfg.training, 'early_stopping', {})
-    es_enabled = early_stop_cfg.get('enabled', False)
-    es_patience = early_stop_cfg.get('patience', 10)
+    early_stop_cfg = getattr(cfg.training, 'early_stopping', None)
+    
+    # Handle both Config objects and raw dicts for robustness
+    if hasattr(early_stop_cfg, '__dict__'):
+        es_enabled = getattr(early_stop_cfg, 'enabled', False)
+        es_patience = getattr(early_stop_cfg, 'patience', 10)
+    elif isinstance(early_stop_cfg, dict):
+        es_enabled = early_stop_cfg.get('enabled', False)
+        es_patience = early_stop_cfg.get('patience', 10)
+    else:
+        es_enabled = False
+        es_patience = 10
+        
     epochs_no_improve = 0
 
     run_stats = {
