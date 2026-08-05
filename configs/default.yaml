@@ -2,9 +2,9 @@ experiment_name: "baseline_cnn_v1"
 seed: 42
 
 data:
-  train_dir: "datasets/train"
-  val_dir: "datasets/test"
-  test_dir: "datasets/test"
+  train_dir: "/content/drive/MyDrive/Shingan_AI/train"
+  val_dir: "/content/drive/MyDrive/Shingan_AI/train"
+  test_dir: "/content/drive/MyDrive/Shingan_AI/train"
   batch_size: 16
   num_workers: 4
   
