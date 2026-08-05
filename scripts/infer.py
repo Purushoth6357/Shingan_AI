@@ -1,8 +1,10 @@
 import os
 import argparse
+import glob
 import torch
 import numpy as np
 import cv2
+from tqdm import tqdm
 
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -10,10 +12,38 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from models.baseline_cnn import BaselineCNN
 from utils.config import load_config
 
+def process_image(model, img_path, device):
+    # Read image
+    is_npy = img_path.lower().endswith('.npy')
+    if is_npy:
+        noisy_img = np.load(img_path)
+    else:
+        noisy_img = cv2.imread(img_path, cv2.IMREAD_COLOR)
+        if noisy_img is None:
+            raise ValueError(f"Failed to load image: {img_path}")
+        noisy_img = cv2.cvtColor(noisy_img, cv2.COLOR_BGR2RGB)
+    
+    # Preprocess
+    noisy_img = noisy_img.astype(np.float32) / 255.0
+    noisy_img = np.transpose(noisy_img, (2, 0, 1)) # HWC to CHW
+    noisy_tensor = torch.from_numpy(noisy_img).unsqueeze(0).to(device) # Add batch dim
+
+    # Forward pass
+    with torch.no_grad():
+        preds = model(noisy_tensor)
+        preds = torch.clamp(preds, 0.0, 1.0)
+        
+    # Postprocess
+    pred_img = preds.squeeze(0).cpu().numpy() # CHW
+    pred_img = np.transpose(pred_img, (1, 2, 0)) # HWC
+    pred_img = (pred_img * 255.0).clip(0, 255).astype(np.uint8)
+    
+    return pred_img, is_npy
+
 def main():
-    parser = argparse.ArgumentParser(description="Inference for a single image/npy file")
-    parser.add_argument('--input', type=str, required=True, help="Path to input noisy image or .npy")
-    parser.add_argument('--output', type=str, default="output.png", help="Path to save the restored image")
+    parser = argparse.ArgumentParser(description="Batch Inference for a folder of images/npy files")
+    parser.add_argument('--input', type=str, required=True, help="Path to input folder containing noisy images or .npy files")
+    parser.add_argument('--output', type=str, required=True, help="Path to output folder to save restored files")
     parser.add_argument('--checkpoint', type=str, required=True, help="Path to model checkpoint")
     parser.add_argument('--config', type=str, default='configs/default.yaml', help="Path to config file")
     
@@ -33,39 +63,38 @@ def main():
     model.eval()
     
     print(f"Loaded model from {args.checkpoint}")
-
-    # Read image
-    if args.input.lower().endswith('.npy'):
-        noisy_img = np.load(args.input)
-    else:
-        noisy_img = cv2.imread(args.input, cv2.IMREAD_COLOR)
-        if noisy_img is None:
-            raise ValueError(f"Failed to load image: {args.input}")
-        noisy_img = cv2.cvtColor(noisy_img, cv2.COLOR_BGR2RGB)
     
-    # Preprocess
-    noisy_img = noisy_img.astype(np.float32) / 255.0
-    noisy_img = np.transpose(noisy_img, (2, 0, 1)) # HWC to CHW
-    noisy_tensor = torch.from_numpy(noisy_img).unsqueeze(0).to(device) # Add batch dim
-
-    # Forward pass
-    with torch.no_grad():
-        preds = model(noisy_tensor)
-        preds = torch.clamp(preds, 0.0, 1.0)
-        
-    # Postprocess
-    pred_img = preds.squeeze(0).cpu().numpy() # CHW
-    pred_img = np.transpose(pred_img, (1, 2, 0)) # HWC
-    pred_img = (pred_img * 255.0).clip(0, 255).astype(np.uint8)
+    # Setup output directory
+    os.makedirs(args.output, exist_ok=True)
     
-    # Save (Convert back to BGR for cv2)
-    if not args.output.lower().endswith('.npy'):
-        pred_img_bgr = cv2.cvtColor(pred_img, cv2.COLOR_RGB2BGR)
-        cv2.imwrite(args.output, pred_img_bgr)
-    else:
-        np.save(args.output, pred_img)
+    # Get files to process
+    valid_extensions = ('.png', '.jpg', '.jpeg', '.tif', '.tiff', '.npy')
+    files = [f for f in os.listdir(args.input) if f.lower().endswith(valid_extensions)]
+    
+    if not files:
+        print(f"No valid image files found in {args.input}")
+        return
         
-    print(f"Successfully saved restored output to {args.output}")
+    print(f"Found {len(files)} files to process in {args.input}")
+    
+    for filename in tqdm(files, desc="Processing files"):
+        input_path = os.path.join(args.input, filename)
+        output_path = os.path.join(args.output, filename)
+        
+        try:
+            pred_img, is_npy = process_image(model, input_path, device)
+            
+            # Save
+            if is_npy:
+                np.save(output_path, pred_img)
+            else:
+                pred_img_bgr = cv2.cvtColor(pred_img, cv2.COLOR_RGB2BGR)
+                cv2.imwrite(output_path, pred_img_bgr)
+                
+        except Exception as e:
+            print(f"Error processing {filename}: {e}")
+            
+    print(f"Inference complete! Results saved to {args.output}")
 
 if __name__ == "__main__":
     main()
