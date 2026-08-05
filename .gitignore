@@ -1,0 +1,13 @@
+venv/
+__pycache__/
+*.pyc
+logs/
+weights/
+results/
+checkpoints/
+datasets/train/
+datasets/val/
+datasets/test/
+datasets/real_dataset/
+datasets/hackathon_data/
+.DS_Store
