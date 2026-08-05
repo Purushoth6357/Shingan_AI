@@ -55,7 +55,18 @@ def main():
             raise ValueError(f"Inconsistent or non-integer upscale factor detected: H_scale={scale_h}, W_scale={scale_w}")
             
         cfg.model.upscale_factor = int(scale_h)
-        print(f"Dynamically inferred upscale factor: x{cfg.model.upscale_factor}")
+        
+        # Save experiment details
+        experiment_details = {
+            "dataset_scale": cfg.model.upscale_factor,
+            "input_resolution": list(lr_shape),
+            "target_resolution": list(gt_shape)
+        }
+        
+        os.makedirs(cfg.training.save_dir, exist_ok=True)
+        import json
+        with open(os.path.join(cfg.training.save_dir, "experiment.json"), "w") as f:
+            json.dump(experiment_details, f, indent=4)
 
     # Model
     model = BaselineCNN(
@@ -79,6 +90,26 @@ def main():
     os.makedirs(cfg.training.save_dir, exist_ok=True)
     best_psnr = 0.0
 
+    # Sanity Report
+    num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    method = norm_dict.get("method", "none")
+    opt_name = getattr(cfg.training, 'optimizer', 'adam').upper()
+    print("======================================")
+    print("Experiment 001.2 Sanity Report")
+    print(f"Dataset Images   : {len(train_dataset)}")
+    if len(train_dataset) > 0:
+        print(f"Input Shape      : {tuple(lr_shape)}")
+        print(f"Target Shape     : {tuple(gt_shape)}")
+    print(f"Scale Factor     : {cfg.model.upscale_factor}")
+    print(f"Normalization    : {method}")
+    print(f"Batch Size       : {cfg.data.batch_size}")
+    print(f"Optimizer        : {opt_name}")
+    print(f"Loss             : Charbonnier")
+    print(f"Model            : BaselineCNN + PixelShuffle")
+    print(f"Parameters       : {num_params:,}")
+    print(f"Device           : {device}")
+    print("======================================")
+
     print(f"Starting training for {cfg.training.epochs} epochs...")
     for epoch in range(1, cfg.training.epochs + 1):
         model.train()
@@ -90,6 +121,8 @@ def main():
 
             optimizer.zero_grad()
             preds = model(noisy)
+            
+            assert preds.shape == gt.shape, f"Prediction Shape: {preds.shape} != GT Shape: {gt.shape}"
             
             loss = criterion(preds, gt)
             loss.backward()
