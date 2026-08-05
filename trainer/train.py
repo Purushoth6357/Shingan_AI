@@ -1,8 +1,10 @@
 import os
 import argparse
+import time
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
+import json
 
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -12,6 +14,12 @@ from datasets.dataset import ShinganDataset
 from models.baseline_cnn import BaselineCNN
 from models.losses import CharbonnierLoss
 from evaluation.evaluator import Evaluator
+from utils.logger import ExperimentLogger
+
+try:
+    from thop import profile
+except ImportError:
+    profile = None
 
 def main():
     parser = argparse.ArgumentParser()
@@ -55,18 +63,21 @@ def main():
             raise ValueError(f"Inconsistent or non-integer upscale factor detected: H_scale={scale_h}, W_scale={scale_w}")
             
         cfg.model.upscale_factor = int(scale_h)
+
+    # Initialize Logger
+    logger = ExperimentLogger(cfg)
+    
+    # Save config
+    with open(os.path.join(logger.config_dir, "experiment.json"), "w") as f:
+        json.dump({
+            "dataset_scale": getattr(cfg.model, 'upscale_factor', 2),
+            "input_resolution": list(lr_shape) if len(train_dataset) > 0 else "unknown",
+            "target_resolution": list(gt_shape) if len(train_dataset) > 0 else "unknown"
+        }, f, indent=4)
         
-        # Save experiment details
-        experiment_details = {
-            "dataset_scale": cfg.model.upscale_factor,
-            "input_resolution": list(lr_shape),
-            "target_resolution": list(gt_shape)
-        }
-        
-        os.makedirs(cfg.training.save_dir, exist_ok=True)
-        import json
-        with open(os.path.join(cfg.training.save_dir, "experiment.json"), "w") as f:
-            json.dump(experiment_details, f, indent=4)
+    with open(os.path.join(logger.config_dir, "config.yaml"), "w") as f:
+        # Save a basic yaml copy
+        f.write(str(cfg.__dict__))
 
     # Model
     model = BaselineCNN(
@@ -86,16 +97,21 @@ def main():
 
     evaluator = Evaluator(device=device, metrics_list=cfg.evaluation.metrics)
 
-    # Checkpoint dir
-    os.makedirs(cfg.training.save_dir, exist_ok=True)
-    best_psnr = 0.0
+    # FLOPs and Params
+    num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    flops = 0
+    if profile and len(train_dataset) > 0:
+        try:
+            dummy_input = torch.randn(1, *lr_shape).to(device)
+            flops, _ = profile(model, inputs=(dummy_input,), verbose=False)
+        except Exception as e:
+            print(f"Warning: FLOPs profiling failed: {e}")
 
     # Sanity Report
-    num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     method = norm_dict.get("method", "none")
     opt_name = getattr(cfg.training, 'optimizer', 'adam').upper()
     print("======================================")
-    print("Experiment 001.2 Sanity Report")
+    print(f"Experiment {logger.exp_name} Sanity Report")
     print(f"Dataset Images   : {len(train_dataset)}")
     if len(train_dataset) > 0:
         print(f"Input Shape      : {tuple(lr_shape)}")
@@ -107,13 +123,41 @@ def main():
     print(f"Loss             : Charbonnier")
     print(f"Model            : BaselineCNN + PixelShuffle")
     print(f"Parameters       : {num_params:,}")
+    print(f"FLOPs (G)        : {flops / 1e9:.2f}" if flops > 0 else "FLOPs (G)        : N/A")
     print(f"Device           : {device}")
     print("======================================")
 
+    best_psnr = 0.0
+    val_every = getattr(cfg.validation, 'every_n_epochs', 1)
+    
+    # Early stopping config
+    early_stop_cfg = getattr(cfg.training, 'early_stopping', {})
+    es_enabled = early_stop_cfg.get('enabled', False)
+    es_patience = early_stop_cfg.get('patience', 10)
+    epochs_no_improve = 0
+
+    run_stats = {
+        "date": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "loss_fn": "Charbonnier",
+        "params": num_params,
+        "flops_g": flops / 1e9 if flops > 0 else 0,
+        "gpu_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "CPU",
+        "train_time": "N/A",
+        "inference_fps": 0,
+        "best_psnr": 0,
+        "best_ssim": 0,
+        "final_psnr": 0,
+        "final_ssim": 0
+    }
+
+    train_start_time = time.time()
+    
     print(f"Starting training for {cfg.training.epochs} epochs...")
     for epoch in range(1, cfg.training.epochs + 1):
         model.train()
         epoch_loss = 0.0
+        
+        epoch_start_time = time.time()
         
         for batch_idx, batch in enumerate(train_loader):
             noisy = batch["NoisyLR"].to(device)
@@ -134,20 +178,58 @@ def main():
                 print(f"Epoch [{epoch}/{cfg.training.epochs}] Batch [{batch_idx}/{len(train_loader)}] Loss: {loss.item():.6f}")
 
         avg_loss = epoch_loss / len(train_loader)
-        print(f"--- Epoch {epoch} completed. Avg Loss: {avg_loss:.6f} ---")
+        epoch_time = time.time() - epoch_start_time
+        
+        gpu_mem = torch.cuda.max_memory_allocated() / (1024**2) if torch.cuda.is_available() else 0
+        print(f"--- Epoch {epoch} completed in {epoch_time:.2f}s. Avg Loss: {avg_loss:.6f} ---")
 
         # Validation
-        print("Running validation...")
-        val_metrics = evaluator.evaluate(model, val_loader)
-        print(f"Validation Metrics: {val_metrics}")
+        val_loss, psnr, ssim = 0.0, 0.0, 0.0
+        if epoch % val_every == 0 or epoch == cfg.training.epochs:
+            print("Running validation...")
+            val_metrics = evaluator.evaluate(model, val_loader, criterion=criterion, epoch=epoch, logger=logger)
+            print(f"Validation Metrics: {val_metrics}")
+            
+            val_loss = val_metrics.get("val_loss", 0)
+            psnr = val_metrics.get("psnr", 0)
+            ssim = val_metrics.get("ssim", 0)
+            run_stats["inference_fps"] = val_metrics.get("throughput_fps", 0)
+            
+            if epoch == cfg.training.epochs:
+                run_stats["final_psnr"] = psnr
+                run_stats["final_ssim"] = ssim
 
-        # Save best model
-        current_psnr = val_metrics.get('psnr', 0)
-        if current_psnr > best_psnr:
-            best_psnr = current_psnr
-            save_path = os.path.join(cfg.training.save_dir, "best_model.pth")
-            torch.save(model.state_dict(), save_path)
-            print(f"Saved new best model with PSNR: {best_psnr:.4f}")
+            # Save best model
+            if psnr > best_psnr:
+                best_psnr = psnr
+                run_stats["best_psnr"] = best_psnr
+                run_stats["best_ssim"] = ssim
+                torch.save(model.state_dict(), os.path.join(logger.ckpt_dir, "best_model.pth"))
+                print(f"Saved new best model with PSNR: {best_psnr:.4f}")
+                epochs_no_improve = 0
+            else:
+                epochs_no_improve += 1
+                
+        # Log to CSV
+        lr = optimizer.param_groups[0]['lr']
+        logger.log_epoch(epoch, avg_loss, val_loss, psnr, ssim, lr, epoch_time, gpu_mem)
+        
+        # Save last model
+        torch.save(model.state_dict(), os.path.join(logger.ckpt_dir, "last_model.pth"))
+        
+        # Early Stopping
+        if es_enabled and epochs_no_improve >= es_patience:
+            print(f"Early stopping triggered after {epoch} epochs.")
+            break
+
+    train_end_time = time.time()
+    total_train_hours = (train_end_time - train_start_time) / 3600
+    run_stats["train_time"] = f"{total_train_hours:.2f} hours"
+
+    print("\nTraining Complete! Generating plots and benchmark report...")
+    logger.generate_plots()
+    logger.generate_benchmark_report(run_stats)
+    print(f"Experiment saved to {logger.exp_dir}")
 
 if __name__ == '__main__':
     main()
