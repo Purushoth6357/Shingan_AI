@@ -42,8 +42,21 @@ class Evaluator:
             preds = torch.clamp(preds, 0.0, 1.0)
             
             if criterion:
-                loss = criterion(preds, gt)
-                total_metrics["val_loss"] += loss.item() * noisy.size(0)
+                loss_out = criterion(preds, gt)
+                if isinstance(loss_out, dict):
+                    # Extract total loss for backcompat
+                    loss_val = loss_out["total"].item()
+                    # Accumulate component losses dynamically
+                    for k, v in loss_out.items():
+                        if k != "total":
+                            comp_key = f"val_loss_{k}"
+                            if comp_key not in total_metrics:
+                                total_metrics[comp_key] = 0.0
+                            total_metrics[comp_key] += v * noisy.size(0)
+                else:
+                    loss_val = loss_out.item()
+                    
+                total_metrics["val_loss"] += loss_val * noisy.size(0)
             
             batch_metrics = compute_metrics(self.metrics, preds, gt)
             

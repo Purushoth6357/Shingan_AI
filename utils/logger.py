@@ -45,7 +45,7 @@ class ExperimentLogger:
         if not self.has_written_header:
             if comp_losses:
                 for k in comp_losses.keys():
-                    self.csv_headers.append(f"train_loss_{k}")
+                    self.csv_headers.append(k)
             with open(self.metrics_path, "w", newline="") as f:
                 writer = csv.writer(f)
                 writer.writerow(self.csv_headers)
@@ -54,9 +54,7 @@ class ExperimentLogger:
         row = [epoch, train_loss, val_loss, psnr, ssim, lr, epoch_time, gpu_mem]
         if comp_losses:
             for k in self.csv_headers[8:]:
-                # Extract the component name from the header (e.g., 'train_loss_charbonnier' -> 'charbonnier')
-                comp_name = k.replace("train_loss_", "")
-                row.append(comp_losses.get(comp_name, 0.0))
+                row.append(comp_losses.get(k, 0.0))
                 
         with open(self.metrics_path, "a", newline="") as f:
             writer = csv.writer(f)

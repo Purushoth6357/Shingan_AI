@@ -204,12 +204,15 @@ def main():
             
             assert preds.shape == gt.shape, f"Prediction Shape: {preds.shape} != GT Shape: {gt.shape}"
             
-            if is_hybrid:
-                loss, comp_losses = criterion(preds, gt)
+            loss_out = criterion(preds, gt)
+            
+            if isinstance(loss_out, dict):
+                loss = loss_out["total"]
+                comp_losses = {k: v for k, v in loss_out.items() if k != "total"}
                 for k, v in comp_losses.items():
                     epoch_comp_losses[k] = epoch_comp_losses.get(k, 0.0) + v
             else:
-                loss = criterion(preds, gt)
+                loss = loss_out
                 
             loss.backward()
             optimizer.step()
@@ -217,21 +220,22 @@ def main():
             epoch_loss += loss.item()
             
             if batch_idx % cfg.training.log_interval == 0:
-                if is_hybrid:
+                if isinstance(loss_out, dict):
                     comp_str = " | ".join([f"{k}: {v:.4f}" for k, v in comp_losses.items()])
                     print(f"Epoch [{epoch}/{cfg.training.epochs}] Batch [{batch_idx}/{len(train_loader)}] Total Loss: {loss.item():.6f} | {comp_str}")
                 else:
                     print(f"Epoch [{epoch}/{cfg.training.epochs}] Batch [{batch_idx}/{len(train_loader)}] Loss: {loss.item():.6f}")
 
         avg_loss = epoch_loss / len(train_loader)
-        avg_comp_losses = {k: v / len(train_loader) for k, v in epoch_comp_losses.items()}
+        avg_comp_losses = {f"train_loss_{k}": v / len(train_loader) for k, v in epoch_comp_losses.items()}
         
         epoch_time = time.time() - epoch_start_time
         
         gpu_mem = torch.cuda.max_memory_allocated() / (1024**2) if torch.cuda.is_available() else 0
         
-        if is_hybrid:
-            comp_str = " | ".join([f"{k}: {v:.4f}" for k, v in avg_comp_losses.items()])
+        if epoch_comp_losses:
+            # We want to print without the 'train_loss_' prefix for brevity in the console
+            comp_str = " | ".join([f"{k}: {v / len(train_loader):.4f}" for k, v in epoch_comp_losses.items()])
             print(f"--- Epoch {epoch} completed in {epoch_time:.2f}s. Avg Total Loss: {avg_loss:.6f} | {comp_str} ---")
         else:
             print(f"--- Epoch {epoch} completed in {epoch_time:.2f}s. Avg Loss: {avg_loss:.6f} ---")
@@ -243,7 +247,16 @@ def main():
             val_metrics = evaluator.evaluate(model, val_loader, criterion=criterion, epoch=epoch, logger=logger)
             print(f"Validation Metrics: {val_metrics}")
             
+            
             val_loss = val_metrics.get("val_loss", 0)
+            
+            # Extract validation component losses to pass to logger
+            val_comp_losses = {k: v for k, v in val_metrics.items() if k.startswith("val_loss_")}
+            if val_comp_losses:
+                # Merge into avg_comp_losses for the logger
+                for k, v in val_comp_losses.items():
+                    avg_comp_losses[k] = v
+
             psnr = val_metrics.get("psnr", 0)
             ssim = val_metrics.get("ssim", 0)
             run_stats["inference_fps"] = val_metrics.get("throughput_fps", 0)

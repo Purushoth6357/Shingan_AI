@@ -85,4 +85,5 @@ class HybridLoss(nn.Module):
             component_losses[name] = loss_val.item()
             total_loss += weight * loss_val
             
-        return total_loss, component_losses
+        component_losses["total"] = total_loss
+        return component_losses
