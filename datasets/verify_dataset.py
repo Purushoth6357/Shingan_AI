@@ -35,8 +35,12 @@ def verify_integrity(root_dir):
         gt_path = os.path.join(gt_dir, fname)
         noisy_path = os.path.join(noisy_dir, fname)
         
-        gt_img = cv2.imread(gt_path)
-        noisy_img = cv2.imread(noisy_path)
+        if fname.lower().endswith('.npy'):
+            gt_img = np.load(gt_path)
+            noisy_img = np.load(noisy_path)
+        else:
+            gt_img = cv2.imread(gt_path)
+            noisy_img = cv2.imread(noisy_path)
         
         if gt_img is None or noisy_img is None:
             print(f"ERROR: Failed to read {fname}")
