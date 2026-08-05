@@ -22,7 +22,7 @@ class ShinganDataset(Dataset):
         # We assume matching filenames. We collect them from NoisyLR.
         self.image_filenames = sorted([
             f for f in os.listdir(self.noisy_dir)
-            if f.lower().endswith(('.png', '.jpg', '.jpeg', '.tif', '.tiff'))
+            if f.lower().endswith(('.png', '.jpg', '.jpeg', '.tif', '.tiff', '.npy'))
         ])
         
         # Verify that all corresponding GT files exist
@@ -37,19 +37,21 @@ class ShinganDataset(Dataset):
         fname = self.image_filenames[idx]
         noisy_path = os.path.join(self.noisy_dir, fname)
         gt_path = os.path.join(self.gt_dir, fname)
-        
-        # Read images using OpenCV (BGR to RGB)
-        noisy_img = cv2.imread(noisy_path, cv2.IMREAD_COLOR)
-        gt_img = cv2.imread(gt_path, cv2.IMREAD_COLOR)
-        
-        if noisy_img is None:
-            raise ValueError(f"Failed to load image: {noisy_path}")
-        if gt_img is None:
-            raise ValueError(f"Failed to load image: {gt_path}")
+        # Read images using OpenCV (BGR to RGB) or np.load for .npy files
+        if fname.lower().endswith('.npy'):
+            noisy_img = np.load(noisy_path)
+            gt_img = np.load(gt_path)
+        else:
+            noisy_img = cv2.imread(noisy_path, cv2.IMREAD_COLOR)
+            gt_img = cv2.imread(gt_path, cv2.IMREAD_COLOR)
             
-        noisy_img = cv2.cvtColor(noisy_img, cv2.COLOR_BGR2RGB)
-        gt_img = cv2.cvtColor(gt_img, cv2.COLOR_BGR2RGB)
-        
+            if noisy_img is None:
+                raise ValueError(f"Failed to load image: {noisy_path}")
+            if gt_img is None:
+                raise ValueError(f"Failed to load image: {gt_path}")
+                
+            noisy_img = cv2.cvtColor(noisy_img, cv2.COLOR_BGR2RGB)
+            gt_img = cv2.cvtColor(gt_img, cv2.COLOR_BGR2RGB)
         # Apply albumentations transforms if any
         if self.transform:
             augmented = self.transform(image=noisy_img, target=gt_img)
