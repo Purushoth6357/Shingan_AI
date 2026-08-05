@@ -18,7 +18,7 @@ def test_dataset_npy_loading():
         os.makedirs(noisy_dir)
         
         # Create dummy 2D .npy files with arbitrary float values
-        dummy_gt = np.random.uniform(low=-0.0026, high=1.3258, size=(128, 128)).astype(np.float32)
+        dummy_gt = np.random.uniform(low=-0.0026, high=1.3258, size=(256, 256)).astype(np.float32)
         dummy_noisy = np.random.uniform(low=-0.0026, high=1.3258, size=(128, 128)).astype(np.float32)
         
         np.save(os.path.join(gt_dir, "test_001.npy"), dummy_gt)
@@ -47,7 +47,7 @@ def test_dataset_npy_loading():
         assert isinstance(noisy_tensor, torch.Tensor)
         
         # Expected shape after 2D -> (H,W,1) -> (1,H,W)
-        assert gt_tensor.shape == (1, 128, 128)
+        assert gt_tensor.shape == (1, 256, 256)
         assert noisy_tensor.shape == (1, 128, 128)
         
         # Verify normalization to [0, 1] range

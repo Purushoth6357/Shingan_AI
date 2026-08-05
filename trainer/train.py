@@ -42,11 +42,27 @@ def main():
     train_loader = DataLoader(train_dataset, batch_size=cfg.data.batch_size, shuffle=True, num_workers=cfg.data.num_workers)
     val_loader = DataLoader(val_dataset, batch_size=cfg.data.batch_size, shuffle=False, num_workers=cfg.data.num_workers)
 
+    # Dynamically infer upscale factor
+    if len(train_dataset) > 0:
+        sample = train_dataset[0]
+        gt_shape = sample["GT"].shape # (C, H, W)
+        lr_shape = sample["NoisyLR"].shape # (C, H, W)
+        
+        scale_h = gt_shape[1] / lr_shape[1]
+        scale_w = gt_shape[2] / lr_shape[2]
+        
+        if scale_h != scale_w or not scale_h.is_integer():
+            raise ValueError(f"Inconsistent or non-integer upscale factor detected: H_scale={scale_h}, W_scale={scale_w}")
+            
+        cfg.model.upscale_factor = int(scale_h)
+        print(f"Dynamically inferred upscale factor: x{cfg.model.upscale_factor}")
+
     # Model
     model = BaselineCNN(
         in_channels=cfg.model.in_channels,
         out_channels=cfg.model.out_channels,
-        features=cfg.model.features
+        features=cfg.model.features,
+        upscale_factor=cfg.model.upscale_factor
     ).to(device)
 
     # Loss and Optimizer

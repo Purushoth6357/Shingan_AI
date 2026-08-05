@@ -86,7 +86,8 @@ def main():
     model = BaselineCNN(
         in_channels=cfg.model.in_channels, 
         out_channels=cfg.model.out_channels, 
-        features=cfg.model.features
+        features=cfg.model.features,
+        upscale_factor=cfg.model.upscale_factor
     ).to(device)
     
     model.load_state_dict(torch.load(args.checkpoint, map_location=device))

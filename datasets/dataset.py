@@ -78,9 +78,10 @@ class ShinganDataset(Dataset):
                 noisy_img = (noisy_img - mean) / (std + 1e-8)
                 gt_img = (gt_img - mean) / (std + 1e-8)
             
-            # Handle 2D arrays by expanding to (H, W, 1) to simulate channels
+            # Handle 2D arrays by expanding to (H, W, 1) independently
             if noisy_img.ndim == 2:
                 noisy_img = np.expand_dims(noisy_img, axis=-1)
+            if gt_img.ndim == 2:
                 gt_img = np.expand_dims(gt_img, axis=-1)
             
             # HWC to CHW
