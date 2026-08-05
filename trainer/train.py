@@ -12,7 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.config import load_config
 from datasets.dataset import ShinganDataset
 from models.baseline_cnn import BaselineCNN
-from models.losses import CharbonnierLoss
+from models.losses import CharbonnierLoss, SobelEdgeLoss, HybridLoss
 from evaluation.evaluator import Evaluator
 from utils.logger import ExperimentLogger
 
@@ -88,8 +88,33 @@ def main():
     ).to(device)
 
     # Loss and Optimizer
-    criterion = CharbonnierLoss().to(device)
+    loss_cfg = getattr(cfg.training, 'loss', None)
+    is_hybrid = False
     
+    if loss_cfg and getattr(loss_cfg, 'type', 'charbonnier') == 'hybrid':
+        is_hybrid = True
+        components_cfg = getattr(loss_cfg, 'components', None)
+        loss_dict = {}
+        loss_weights = {}
+        
+        # Build components
+        if hasattr(components_cfg, '__dict__'):
+            comp_dict = components_cfg.__dict__
+        else:
+            comp_dict = components_cfg if isinstance(components_cfg, dict) else {}
+            
+        if 'charbonnier' in comp_dict:
+            loss_dict['charbonnier'] = CharbonnierLoss()
+            loss_weights['charbonnier'] = getattr(comp_dict['charbonnier'], 'weight', 1.0) if hasattr(comp_dict['charbonnier'], 'weight') else comp_dict['charbonnier'].get('weight', 1.0)
+            
+        if 'sobel' in comp_dict:
+            loss_dict['sobel'] = SobelEdgeLoss()
+            loss_weights['sobel'] = getattr(comp_dict['sobel'], 'weight', 0.1) if hasattr(comp_dict['sobel'], 'weight') else comp_dict['sobel'].get('weight', 0.1)
+            
+        criterion = HybridLoss(loss_dict, loss_weights).to(device)
+    else:
+        criterion = CharbonnierLoss().to(device)
+        
     if getattr(cfg.training, 'optimizer', 'adam') == 'adamw':
         optimizer = optim.AdamW(model.parameters(), lr=cfg.training.learning_rate, weight_decay=cfg.training.weight_decay)
     else:
@@ -120,7 +145,7 @@ def main():
     print(f"Normalization    : {method}")
     print(f"Batch Size       : {cfg.data.batch_size}")
     print(f"Optimizer        : {opt_name}")
-    print(f"Loss             : Charbonnier")
+    print(f"Loss             : {'Hybrid (' + ', '.join(loss_dict.keys()) + ')' if is_hybrid else 'Charbonnier'}")
     print(f"Model            : BaselineCNN + PixelShuffle")
     print(f"Parameters       : {num_params:,}")
     print(f"FLOPs (G)        : {flops / 1e9:.2f}" if flops > 0 else "FLOPs (G)        : N/A")
@@ -166,6 +191,7 @@ def main():
     for epoch in range(1, cfg.training.epochs + 1):
         model.train()
         epoch_loss = 0.0
+        epoch_comp_losses = {}
         
         epoch_start_time = time.time()
         
@@ -178,20 +204,37 @@ def main():
             
             assert preds.shape == gt.shape, f"Prediction Shape: {preds.shape} != GT Shape: {gt.shape}"
             
-            loss = criterion(preds, gt)
+            if is_hybrid:
+                loss, comp_losses = criterion(preds, gt)
+                for k, v in comp_losses.items():
+                    epoch_comp_losses[k] = epoch_comp_losses.get(k, 0.0) + v
+            else:
+                loss = criterion(preds, gt)
+                
             loss.backward()
             optimizer.step()
 
             epoch_loss += loss.item()
             
             if batch_idx % cfg.training.log_interval == 0:
-                print(f"Epoch [{epoch}/{cfg.training.epochs}] Batch [{batch_idx}/{len(train_loader)}] Loss: {loss.item():.6f}")
+                if is_hybrid:
+                    comp_str = " | ".join([f"{k}: {v:.4f}" for k, v in comp_losses.items()])
+                    print(f"Epoch [{epoch}/{cfg.training.epochs}] Batch [{batch_idx}/{len(train_loader)}] Total Loss: {loss.item():.6f} | {comp_str}")
+                else:
+                    print(f"Epoch [{epoch}/{cfg.training.epochs}] Batch [{batch_idx}/{len(train_loader)}] Loss: {loss.item():.6f}")
 
         avg_loss = epoch_loss / len(train_loader)
+        avg_comp_losses = {k: v / len(train_loader) for k, v in epoch_comp_losses.items()}
+        
         epoch_time = time.time() - epoch_start_time
         
         gpu_mem = torch.cuda.max_memory_allocated() / (1024**2) if torch.cuda.is_available() else 0
-        print(f"--- Epoch {epoch} completed in {epoch_time:.2f}s. Avg Loss: {avg_loss:.6f} ---")
+        
+        if is_hybrid:
+            comp_str = " | ".join([f"{k}: {v:.4f}" for k, v in avg_comp_losses.items()])
+            print(f"--- Epoch {epoch} completed in {epoch_time:.2f}s. Avg Total Loss: {avg_loss:.6f} | {comp_str} ---")
+        else:
+            print(f"--- Epoch {epoch} completed in {epoch_time:.2f}s. Avg Loss: {avg_loss:.6f} ---")
 
         # Validation
         val_loss, psnr, ssim = 0.0, 0.0, 0.0
@@ -222,7 +265,7 @@ def main():
                 
         # Log to CSV
         lr = optimizer.param_groups[0]['lr']
-        logger.log_epoch(epoch, avg_loss, val_loss, psnr, ssim, lr, epoch_time, gpu_mem)
+        logger.log_epoch(epoch, avg_loss, val_loss, psnr, ssim, lr, epoch_time, gpu_mem, avg_comp_losses)
         
         # Save last model
         torch.save(model.state_dict(), os.path.join(logger.ckpt_dir, "last_model.pth"))

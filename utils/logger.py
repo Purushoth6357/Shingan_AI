@@ -23,15 +23,11 @@ class ExperimentLogger:
         for d in [self.ckpt_dir, self.plots_dir, self.samples_dir, self.logs_dir, self.config_dir]:
             os.makedirs(d, exist_ok=True)
             
-        self.metrics_path = os.path.join(self.logs_dir, "metrics.csv")
-        
         # Initialize CSV
-        if not os.path.exists(self.metrics_path):
-            with open(self.metrics_path, "w", newline="") as f:
-                writer = csv.writer(f)
-                writer.writerow(["epoch", "train_loss", "val_loss", "psnr", "ssim", "lr", "epoch_time", "gpu_memory_MB"])
-                
+        self.metrics_path = os.path.join(self.logs_dir, "metrics.csv")
+        self.csv_headers = ["epoch", "train_loss", "val_loss", "psnr", "ssim", "lr", "epoch_time", "gpu_memory_MB"]
         self.history = {"train_loss": [], "val_loss": [], "psnr": [], "ssim": [], "epochs": []}
+        self.has_written_header = False
         
         # Save Git Commit
         self._save_git_commit()
@@ -45,10 +41,26 @@ class ExperimentLogger:
             f.write(commit_hash)
         self.commit_hash = commit_hash
 
-    def log_epoch(self, epoch, train_loss, val_loss, psnr, ssim, lr, epoch_time, gpu_mem):
+    def log_epoch(self, epoch, train_loss, val_loss, psnr, ssim, lr, epoch_time, gpu_mem, comp_losses=None):
+        if not self.has_written_header:
+            if comp_losses:
+                for k in comp_losses.keys():
+                    self.csv_headers.append(f"train_loss_{k}")
+            with open(self.metrics_path, "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(self.csv_headers)
+            self.has_written_header = True
+            
+        row = [epoch, train_loss, val_loss, psnr, ssim, lr, epoch_time, gpu_mem]
+        if comp_losses:
+            for k in self.csv_headers[8:]:
+                # Extract the component name from the header (e.g., 'train_loss_charbonnier' -> 'charbonnier')
+                comp_name = k.replace("train_loss_", "")
+                row.append(comp_losses.get(comp_name, 0.0))
+                
         with open(self.metrics_path, "a", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow([epoch, train_loss, val_loss, psnr, ssim, lr, epoch_time, gpu_mem])
+            writer.writerow(row)
             
         self.history["epochs"].append(epoch)
         self.history["train_loss"].append(train_loss)
@@ -121,6 +133,21 @@ class ExperimentLogger:
         diff_norm = np.clip(diff / 255.0, 0, 1)
         heatmap = cv2.applyColorMap((diff_norm * 255).astype(np.uint8), cv2.COLORMAP_JET)
         
+        # Compute Edge Difference (using OpenCV Sobel for visualization)
+        p_gray = p_img if len(p_img.shape) == 2 else cv2.cvtColor(p_img, cv2.COLOR_BGR2GRAY)
+        g_gray = g_img if len(g_img.shape) == 2 else cv2.cvtColor(g_img, cv2.COLOR_BGR2GRAY)
+        
+        # Calculate Sobel X and Y for both
+        sobel_p_x = cv2.Sobel(p_gray, cv2.CV_32F, 1, 0, ksize=3)
+        sobel_p_y = cv2.Sobel(p_gray, cv2.CV_32F, 0, 1, ksize=3)
+        sobel_g_x = cv2.Sobel(g_gray, cv2.CV_32F, 1, 0, ksize=3)
+        sobel_g_y = cv2.Sobel(g_gray, cv2.CV_32F, 0, 1, ksize=3)
+        
+        # Calculate magnitude of differences
+        edge_diff = np.abs(sobel_p_x - sobel_g_x) + np.abs(sobel_p_y - sobel_g_y)
+        edge_diff_norm = np.clip(edge_diff / (np.max(edge_diff) + 1e-5), 0, 1)
+        edge_diff_viz = cv2.applyColorMap((edge_diff_norm * 255).astype(np.uint8), cv2.COLORMAP_MAGMA)
+        
         # Ensure all are 3 channel for stacking
         if len(n_img_resized.shape) == 2: n_img_resized = cv2.cvtColor(n_img_resized, cv2.COLOR_GRAY2BGR)
         if len(p_img.shape) == 2: p_img = cv2.cvtColor(p_img, cv2.COLOR_GRAY2BGR)
@@ -128,13 +155,14 @@ class ExperimentLogger:
         
         # Add labels
         def add_label(img, text):
-            return cv2.putText(img.copy(), text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            return cv2.putText(img.copy(), text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
             
         grid = np.hstack((
-            add_label(n_img_resized, "Input (Bicubic)"), 
+            add_label(n_img_resized, "Input"), 
             add_label(p_img, "Prediction"), 
             add_label(g_img, "Ground Truth"), 
-            add_label(heatmap, "Error Heatmap")
+            add_label(heatmap, "Error Heatmap"),
+            add_label(edge_diff_viz, "Edge Diff")
         ))
         
         cv2.imwrite(f"{prefix}_visualization.png", grid)
@@ -162,6 +190,15 @@ class ExperimentLogger:
 | **Best SSIM** | {run_stats.get('best_ssim', 'N/A'):.4f} |
 | **Final PSNR** | {run_stats.get('final_psnr', 'N/A'):.4f} |
 | **Final SSIM** | {run_stats.get('final_ssim', 'N/A'):.4f} |
+
+## Experiment 001 (Baseline) vs Experiment 002
+
+| Metric | Exp001 | Exp002 ({self.exp_name}) | Δ |
+|--------|-------:|-------:|--:|
+| **PSNR** | 26.42 | {run_stats.get('final_psnr', 0):.4f} | {run_stats.get('final_psnr', 0) - 26.42:+.4f} |
+| **SSIM** | 0.656 | {run_stats.get('final_ssim', 0):.4f} | {run_stats.get('final_ssim', 0) - 0.656:+.4f} |
+| **FPS** | 24 | {run_stats.get('inference_fps', 0):.0f} | {run_stats.get('inference_fps', 0) - 24:+.0f} |
+| **Params** | ~150K | {run_stats.get('params', 0):,} | N/A |
 
 ## Observations
 *(Add notes here after reviewing the run)*
