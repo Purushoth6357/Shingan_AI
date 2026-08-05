@@ -7,11 +7,13 @@ data:
   test_dir: "datasets/test"
   batch_size: 16
   num_workers: 4
+  norm_min: -0.0026
+  norm_max: 1.3258
 
 model:
   architecture: "cnn" # Options: cnn, hybrid
-  in_channels: 3
-  out_channels: 3
+  in_channels: 1
+  out_channels: 1
   features: 64
 
 training:

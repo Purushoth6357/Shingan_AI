@@ -12,7 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from models.baseline_cnn import BaselineCNN
 from utils.config import load_config
 
-def process_image(model, img_path, device):
+def process_image(model, img_path, device, norm_min, norm_max):
     # Read image
     is_npy = img_path.lower().endswith('.npy')
     if is_npy:
@@ -24,7 +24,14 @@ def process_image(model, img_path, device):
         noisy_img = cv2.cvtColor(noisy_img, cv2.COLOR_BGR2RGB)
     
     # Preprocess
-    noisy_img = noisy_img.astype(np.float32) / 255.0
+    noisy_img = noisy_img.astype(np.float32)
+    
+    if norm_max > norm_min:
+        noisy_img = (noisy_img - norm_min) / (norm_max - norm_min)
+        
+    if noisy_img.ndim == 2:
+        noisy_img = np.expand_dims(noisy_img, axis=-1)
+        
     noisy_img = np.transpose(noisy_img, (2, 0, 1)) # HWC to CHW
     noisy_tensor = torch.from_numpy(noisy_img).unsqueeze(0).to(device) # Add batch dim
 
@@ -33,10 +40,18 @@ def process_image(model, img_path, device):
         preds = model(noisy_tensor)
         preds = torch.clamp(preds, 0.0, 1.0)
         
-    # Postprocess
+    # Postprocess (de-normalize and format)
     pred_img = preds.squeeze(0).cpu().numpy() # CHW
     pred_img = np.transpose(pred_img, (1, 2, 0)) # HWC
-    pred_img = (pred_img * 255.0).clip(0, 255).astype(np.uint8)
+    
+    if norm_max > norm_min:
+        pred_img = pred_img * (norm_max - norm_min) + norm_min
+        
+    if pred_img.shape[-1] == 1:
+        pred_img = pred_img.squeeze(-1)
+        
+    if not is_npy:
+        pred_img = pred_img.clip(0, 255).astype(np.uint8)
     
     return pred_img, is_npy
 
@@ -82,7 +97,9 @@ def main():
         output_path = os.path.join(args.output, filename)
         
         try:
-            pred_img, is_npy = process_image(model, input_path, device)
+            pred_img, is_npy = process_image(model, input_path, device, 
+                                             getattr(cfg.data, 'norm_min', 0.0), 
+                                             getattr(cfg.data, 'norm_max', 1.0))
             
             # Save
             if is_npy:

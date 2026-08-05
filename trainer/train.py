@@ -24,8 +24,11 @@ def main():
     print(f"Using device: {device}")
 
     # Dataset & DataLoader
-    train_dataset = ShinganDataset(cfg.data.train_dir)
-    val_dataset = ShinganDataset(cfg.data.val_dir)
+    norm_min = getattr(cfg.data, 'norm_min', 0.0)
+    norm_max = getattr(cfg.data, 'norm_max', 1.0)
+    
+    train_dataset = ShinganDataset(cfg.data.train_dir, norm_min=norm_min, norm_max=norm_max)
+    val_dataset = ShinganDataset(cfg.data.val_dir, norm_min=norm_min, norm_max=norm_max)
     
     if args.subset:
         train_dataset.image_filenames = train_dataset.image_filenames[:args.subset]

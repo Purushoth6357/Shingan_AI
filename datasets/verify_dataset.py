@@ -1,5 +1,6 @@
 import os
 import argparse
+# pyrefly: ignore [missing-import]
 import cv2
 import numpy as np
 import torch
