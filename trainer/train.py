@@ -12,7 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.config import load_config
 from datasets.dataset import ShinganDataset
 from models.baseline_cnn import BaselineCNN
-from models.losses import CharbonnierLoss, SobelEdgeLoss, HybridLoss
+from models.losses import CharbonnierLoss, SobelEdgeLoss, HybridLoss, FocalFrequencyLoss
 from evaluation.evaluator import Evaluator
 from utils.logger import ExperimentLogger
 
@@ -110,6 +110,10 @@ def main():
         if 'sobel' in comp_dict:
             loss_dict['sobel'] = SobelEdgeLoss()
             loss_weights['sobel'] = getattr(comp_dict['sobel'], 'weight', 0.1) if hasattr(comp_dict['sobel'], 'weight') else comp_dict['sobel'].get('weight', 0.1)
+            
+        if 'focal_frequency' in comp_dict:
+            loss_dict['focal_frequency'] = FocalFrequencyLoss()
+            loss_weights['focal_frequency'] = getattr(comp_dict['focal_frequency'], 'weight', 0.1) if hasattr(comp_dict['focal_frequency'], 'weight') else comp_dict['focal_frequency'].get('weight', 0.1)
             
         criterion = HybridLoss(loss_dict, loss_weights).to(device)
     else:

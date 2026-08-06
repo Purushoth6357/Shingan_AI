@@ -87,3 +87,24 @@ class HybridLoss(nn.Module):
             
         component_losses["total"] = total_loss
         return component_losses
+
+class FocalFrequencyLoss(nn.Module):
+    """
+    Focal Frequency Loss.
+    Computes loss in the frequency domain using 2D FFT, focusing on hard frequencies.
+    """
+    def __init__(self, alpha=1.0):
+        super(FocalFrequencyLoss, self).__init__()
+        self.alpha = alpha
+        
+    def forward(self, pred, gt):
+        freq_pred = torch.fft.fft2(pred, norm='ortho')
+        freq_gt = torch.fft.fft2(gt, norm='ortho')
+        diff = freq_pred - freq_gt
+        
+        # Calculate dynamic focal weight matrix
+        weight_matrix = torch.abs(diff) ** self.alpha
+        weight_matrix = weight_matrix / (torch.amax(weight_matrix, dim=(-2, -1), keepdim=True) + 1e-6)
+        
+        loss = torch.mean(weight_matrix * (torch.abs(diff) ** 2))
+        return loss
