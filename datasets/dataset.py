@@ -10,21 +10,26 @@ class ShinganDataset(Dataset):
     Dataset for Shingan AI: AI-Based Restoration of Degraded Images for Semiconductor Inspection.
     Expects a root directory with `GT` and `NoisyLR` subdirectories.
     """
-    def __init__(self, root_dir, transform=None, norm_config=None):
+    def __init__(self, root_dir, transform=None, norm_config=None, split_file=None):
         self.root_dir = root_dir
         self.gt_dir = os.path.join(root_dir, "GT")
         self.noisy_dir = os.path.join(root_dir, "NoisyLR")
         self.transform = transform
         self.norm_config = norm_config or {"method": "none"}
+        self.split_file = split_file
         
         if not os.path.exists(self.gt_dir) or not os.path.exists(self.noisy_dir):
             raise FileNotFoundError(f"Missing GT or NoisyLR directory in {root_dir}")
             
-        # We assume matching filenames. We collect them from NoisyLR.
-        self.image_filenames = sorted([
-            f for f in os.listdir(self.noisy_dir)
-            if f.lower().endswith(('.png', '.jpg', '.jpeg', '.tif', '.tiff', '.npy'))
-        ])
+        if self.split_file and os.path.exists(self.split_file):
+            with open(self.split_file, 'r') as f:
+                self.image_filenames = [line.strip() for line in f if line.strip()]
+        else:
+            # Fallback to scanning
+            self.image_filenames = sorted([
+                f for f in os.listdir(self.noisy_dir)
+                if f.lower().endswith(('.png', '.jpg', '.jpeg', '.tif', '.tiff', '.npy'))
+            ])
         
         # Verify that all corresponding GT files exist
         for fname in self.image_filenames:

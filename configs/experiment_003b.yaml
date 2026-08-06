@@ -5,6 +5,9 @@ data:
   train_dir: "/content/drive/MyDrive/Shingan_AI/train"
   val_dir: "/content/drive/MyDrive/Shingan_AI/train"
   test_dir: "/content/drive/MyDrive/Shingan_AI/train"
+  train_split: "datasets/splits/train.txt"
+  val_split: "datasets/splits/val.txt"
+  test_split: "datasets/splits/test.txt"
   batch_size: 16
   num_workers: 4
   

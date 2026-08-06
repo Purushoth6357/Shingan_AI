@@ -39,8 +39,11 @@ def main():
     else:
         norm_dict = norm_config
     
-    train_dataset = ShinganDataset(cfg.data.train_dir, norm_config=norm_dict)
-    val_dataset = ShinganDataset(cfg.data.val_dir, norm_config=norm_dict)
+    train_split = getattr(cfg.data, 'train_split', None)
+    val_split = getattr(cfg.data, 'val_split', None)
+    
+    train_dataset = ShinganDataset(cfg.data.train_dir, norm_config=norm_dict, split_file=train_split)
+    val_dataset = ShinganDataset(cfg.data.val_dir, norm_config=norm_dict, split_file=val_split)
     
     if args.subset:
         train_dataset.image_filenames = train_dataset.image_filenames[:args.subset]
