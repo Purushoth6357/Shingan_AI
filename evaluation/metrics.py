@@ -1,16 +1,24 @@
 import torch
+from torchmetrics import Metric
 from torchmetrics.image import PeakSignalNoiseRatio, StructuralSimilarityIndexMeasure
 
-class GradientMagnitudeCorrelation(torch.nn.Module):
+class GradientMagnitudeCorrelation(Metric):
     """
     Computes Gradient Magnitude Correlation (GMC) between predicted and GT images.
     Used for assessing edge and texture localization.
     """
-    def __init__(self, data_range=1.0):
-        super().__init__()
+    is_differentiable = True
+    higher_is_better = True
+    full_state_update = False
+
+    def __init__(self, data_range=1.0, **kwargs):
+        super().__init__(**kwargs)
         self.data_range = data_range
         self.register_buffer('gx', torch.tensor([[-1., 0., 1.], [-2., 0., 2.], [-1., 0., 1.]], dtype=torch.float32).view(1, 1, 3, 3))
         self.register_buffer('gy', torch.tensor([[-1., -2., -1.], [0., 0., 0.], [1., 2., 1.]], dtype=torch.float32).view(1, 1, 3, 3))
+        
+        self.add_state("sum_corr", default=torch.tensor(0.0), dist_reduce_fx="sum")
+        self.add_state("total_batches", default=torch.tensor(0.0), dist_reduce_fx="sum")
         
     def _compute_magnitude(self, img):
         # We assume grayscale (1 channel)
@@ -18,7 +26,7 @@ class GradientMagnitudeCorrelation(torch.nn.Module):
         grad_y = torch.nn.functional.conv2d(img, self.gy, padding=1)
         return torch.sqrt(grad_x**2 + grad_y**2 + 1e-8)
         
-    def forward(self, preds, targets):
+    def update(self, preds, targets):
         mag_preds = self._compute_magnitude(preds)
         mag_targets = self._compute_magnitude(targets)
         
@@ -37,7 +45,13 @@ class GradientMagnitudeCorrelation(torch.nn.Module):
         t_var = (t_zm ** 2).sum(dim=1)
         
         corr = cov / torch.sqrt(p_var * t_var + 1e-8)
-        return corr.mean()
+        batch_mean_corr = corr.mean()
+        
+        self.sum_corr += batch_mean_corr
+        self.total_batches += 1
+        
+    def compute(self):
+        return self.sum_corr / self.total_batches if self.total_batches > 0 else torch.tensor(0.0, device=self.sum_corr.device)
 
 def get_metrics(device="cpu"):
     """
