@@ -39,8 +39,8 @@ validation:
   every_n_epochs: 1
 
 tracking:
-  experiment_name: "experiment_001"
-  save_dir: "experiments"
+  experiment_name: "experiment_001_baseline"
+  save_dir: "/content/drive/MyDrive/Shingan_AI/experiments"
   
 evaluation:
   metrics: ["psnr", "ssim"]

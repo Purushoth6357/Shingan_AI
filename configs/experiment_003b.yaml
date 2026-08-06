@@ -50,7 +50,7 @@ validation:
 
 tracking:
   experiment_name: "experiment_003b_capacity_cnn"
-  save_dir: "experiments"
+  save_dir: "/content/drive/MyDrive/Shingan_AI/experiments"
   
 evaluation:
   metrics: ["psnr", "ssim", "gmc"]
