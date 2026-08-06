@@ -25,6 +25,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, default='configs/default.yaml', help='Path to config file')
     parser.add_argument('--subset', type=int, default=None, help='Train on a subset of data (for smoke testing)')
+    parser.add_argument('--resume', type=str, default=None, help='Path to checkpoint to resume training from')
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -131,6 +132,26 @@ def main():
 
     evaluator = Evaluator(device=device, metrics_list=cfg.evaluation.metrics)
 
+    start_epoch = 1
+    best_psnr = 0.0
+
+    if args.resume and os.path.exists(args.resume):
+        print(f"Resuming training from {args.resume}...")
+        checkpoint = torch.load(args.resume, map_location=device)
+        if 'model_state_dict' in checkpoint:
+            model.load_state_dict(checkpoint['model_state_dict'])
+            if 'optimizer_state_dict' in checkpoint:
+                optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            if 'epoch' in checkpoint:
+                start_epoch = checkpoint['epoch'] + 1
+            if 'best_psnr' in checkpoint:
+                best_psnr = checkpoint['best_psnr']
+            print(f"Resumed from epoch {start_epoch - 1} with best PSNR {best_psnr:.4f}")
+        else:
+            # Fallback to legacy checkpoints which just contain model weights
+            model.load_state_dict(checkpoint)
+            print("Loaded legacy model weights.")
+
     # FLOPs and Params
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     flops = 0
@@ -161,7 +182,6 @@ def main():
     print(f"Device           : {device}")
     print("======================================")
 
-    best_psnr = 0.0
     val_every = getattr(cfg.validation, 'every_n_epochs', 1)
     
     # Early stopping config
@@ -201,7 +221,7 @@ def main():
     train_start_time = time.time()
     
     print(f"Starting training for {cfg.training.epochs} epochs...")
-    for epoch in range(1, cfg.training.epochs + 1):
+    for epoch in range(start_epoch, cfg.training.epochs + 1):
         model.train()
         epoch_loss = 0.0
         epoch_comp_losses = {}
@@ -286,7 +306,14 @@ def main():
                 run_stats["best_psnr"] = best_psnr
                 run_stats["best_ssim"] = ssim
                 run_stats["best_gmc"] = gmc
-                torch.save(model.state_dict(), os.path.join(logger.ckpt_dir, "best_model.pth"))
+                
+                checkpoint_dict = {
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'best_psnr': best_psnr
+                }
+                torch.save(checkpoint_dict, os.path.join(logger.ckpt_dir, "best_model.pth"))
                 print(f"Saved new best model with PSNR: {best_psnr:.4f}")
                 epochs_no_improve = 0
             else:
@@ -300,7 +327,13 @@ def main():
         run_stats["avg_epoch_time"] = (run_stats["avg_epoch_time"] * (epoch - 1) + epoch_time) / epoch
         
         # Save last model
-        torch.save(model.state_dict(), os.path.join(logger.ckpt_dir, "last_model.pth"))
+        last_checkpoint_dict = {
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'best_psnr': best_psnr
+        }
+        torch.save(last_checkpoint_dict, os.path.join(logger.ckpt_dir, "last_model.pth"))
         
         # Early Stopping
         if es_enabled and epochs_no_improve >= es_patience:

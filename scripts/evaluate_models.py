@@ -48,7 +48,11 @@ def main():
             upscale_factor=cfg.model.upscale_factor,
             num_blocks=num_blocks
         ).to(device)
-        model.load_state_dict(torch.load(ckpt_path, map_location=device))
+        checkpoint = torch.load(ckpt_path, map_location=device)
+        if 'model_state_dict' in checkpoint:
+            model.load_state_dict(checkpoint['model_state_dict'])
+        else:
+            model.load_state_dict(checkpoint)
         
         metrics = evaluator.evaluate(model, val_loader)
         
