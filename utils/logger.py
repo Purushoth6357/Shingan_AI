@@ -182,12 +182,16 @@ class ExperimentLogger:
 | **Parameters** | {run_stats.get('params', 'N/A'):,} |
 | **FLOPs (G)** | {run_stats.get('flops_g', 'N/A'):.2f} |
 | **GPU** | {run_stats.get('gpu_name', 'N/A')} |
+| **Peak GPU Memory (MB)** | {run_stats.get('peak_gpu_mem_mb', 0):.2f} |
 | **Training Time** | {run_stats.get('train_time', 'N/A')} |
+| **Avg Epoch Time (s)** | {run_stats.get('avg_epoch_time', 0):.2f} |
 | **Inference FPS** | {run_stats.get('inference_fps', 'N/A'):.2f} |
 | **Best PSNR** | {run_stats.get('best_psnr', 'N/A'):.4f} |
 | **Best SSIM** | {run_stats.get('best_ssim', 'N/A'):.4f} |
+| **Best GMC** | {run_stats.get('best_gmc', 'N/A'):.4f} |
 | **Final PSNR** | {run_stats.get('final_psnr', 'N/A'):.4f} |
 | **Final SSIM** | {run_stats.get('final_ssim', 'N/A'):.4f} |
+| **Final GMC** | {run_stats.get('final_gmc', 'N/A'):.4f} |
 
 ## Experiment 001 (Baseline) vs Experiment 002
 
@@ -195,6 +199,7 @@ class ExperimentLogger:
 |--------|-------:|-------:|--:|
 | **PSNR** | 26.42 | {run_stats.get('final_psnr', 0):.4f} | {run_stats.get('final_psnr', 0) - 26.42:+.4f} |
 | **SSIM** | 0.656 | {run_stats.get('final_ssim', 0):.4f} | {run_stats.get('final_ssim', 0) - 0.656:+.4f} |
+| **GMC** | N/A | {run_stats.get('final_gmc', 0):.4f} | N/A |
 | **FPS** | 24 | {run_stats.get('inference_fps', 0):.0f} | {run_stats.get('inference_fps', 0) - 24:+.0f} |
 | **Params** | ~150K | {run_stats.get('params', 0):,} | N/A |
 

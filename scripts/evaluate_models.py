@@ -40,11 +40,13 @@ def main():
     
     def evaluate_model(ckpt_path, name):
         print(f"\n--- Evaluating {name} ---")
+        num_blocks = getattr(cfg.model, 'num_blocks', 4)
         model = BaselineCNN(
             in_channels=cfg.model.in_channels, 
             out_channels=cfg.model.out_channels, 
             features=cfg.model.features,
-            upscale_factor=cfg.model.upscale_factor
+            upscale_factor=cfg.model.upscale_factor,
+            num_blocks=num_blocks
         ).to(device)
         model.load_state_dict(torch.load(ckpt_path, map_location=device))
         

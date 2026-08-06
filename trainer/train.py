@@ -83,11 +83,13 @@ def main():
         f.write(str(cfg.__dict__))
 
     # Model
+    num_blocks = getattr(cfg.model, 'num_blocks', 4)
     model = BaselineCNN(
         in_channels=cfg.model.in_channels,
         out_channels=cfg.model.out_channels,
         features=cfg.model.features,
-        upscale_factor=cfg.model.upscale_factor
+        upscale_factor=cfg.model.upscale_factor,
+        num_blocks=num_blocks
     ).to(device)
 
     # Loss and Optimizer
@@ -188,8 +190,12 @@ def main():
         "inference_fps": 0,
         "best_psnr": 0,
         "best_ssim": 0,
+        "best_gmc": 0,
         "final_psnr": 0,
-        "final_ssim": 0
+        "final_ssim": 0,
+        "final_gmc": 0,
+        "peak_gpu_mem_mb": 0,
+        "avg_epoch_time": 0
     }
 
     train_start_time = time.time()
@@ -266,17 +272,20 @@ def main():
 
             psnr = val_metrics.get("psnr", 0)
             ssim = val_metrics.get("ssim", 0)
+            gmc = val_metrics.get("gmc", 0)
             run_stats["inference_fps"] = val_metrics.get("throughput_fps", 0)
             
             if epoch == cfg.training.epochs:
                 run_stats["final_psnr"] = psnr
                 run_stats["final_ssim"] = ssim
+                run_stats["final_gmc"] = gmc
 
             # Save best model
             if psnr > best_psnr:
                 best_psnr = psnr
                 run_stats["best_psnr"] = best_psnr
                 run_stats["best_ssim"] = ssim
+                run_stats["best_gmc"] = gmc
                 torch.save(model.state_dict(), os.path.join(logger.ckpt_dir, "best_model.pth"))
                 print(f"Saved new best model with PSNR: {best_psnr:.4f}")
                 epochs_no_improve = 0
@@ -286,6 +295,9 @@ def main():
         # Log to CSV
         lr = optimizer.param_groups[0]['lr']
         logger.log_epoch(epoch, avg_loss, val_loss, psnr, ssim, lr, epoch_time, gpu_mem, avg_comp_losses)
+        
+        run_stats["peak_gpu_mem_mb"] = max(run_stats["peak_gpu_mem_mb"], gpu_mem)
+        run_stats["avg_epoch_time"] = (run_stats["avg_epoch_time"] * (epoch - 1) + epoch_time) / epoch
         
         # Save last model
         torch.save(model.state_dict(), os.path.join(logger.ckpt_dir, "last_model.pth"))

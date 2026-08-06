@@ -16,14 +16,14 @@ class ResBlock(nn.Module):
         return x + res
 
 class BaselineCNN(nn.Module):
-    def __init__(self, in_channels=1, out_channels=1, features=64, upscale_factor=2):
+    def __init__(self, in_channels=1, out_channels=1, features=64, upscale_factor=2, num_blocks=4):
         super(BaselineCNN, self).__init__()
         
         # Initial feature extraction
         self.conv_in = nn.Conv2d(in_channels, features, kernel_size=3, padding=1)
         
         # Residual blocks (operating at LR spatial resolution)
-        self.res_blocks = nn.Sequential(*[ResBlock(features) for _ in range(4)])
+        self.res_blocks = nn.Sequential(*[ResBlock(features) for _ in range(num_blocks)])
         
         # Post-residual convolution
         self.conv_post = nn.Conv2d(features, features, kernel_size=3, padding=1)
