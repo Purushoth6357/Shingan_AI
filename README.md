@@ -8,8 +8,16 @@ Build a robust, reproducible image restoration system that restores degraded ima
 - **Evaluation**: Unseen images, scored on combination of metrics, generalization, throughput, reproducibility.
 - **Inference**: Single `infer.py` script that reads every image in an input folder and writes restored images to an output folder.
 
+## Official Benchmark (Frozen Baseline)
+Experiment 002 (Baseline CNN + PixelShuffle ×2 + Hybrid Loss [Charbonnier + Sobel]) is our official locked baseline for future comparisons.
+- **PSNR**: 28.5041 dB
+- **SSIM**: 0.7873
+- **Validation Loss**: 0.04263
+
+All future experiments (Focal Frequency Loss, Hybrid architectures, Prompt Encoders) must beat these metrics.
+
 ## Architecture
-**Approved Architecture**: `Input -> Degradation Prompt Encoder -> Hybrid CNN + Transformer -> Restored Image`
+**Approved Architecture**: `Input -> Image Quality Analyzer -> Degradation Prompt Encoder -> Hybrid CNN + Transformer -> Feature Fusion -> Restored Image`
 - *Note*: Edge preservation is handled via Charbonnier + Sobel Edge Loss + Focal Frequency Loss. A standalone edge refinement module is explicitly omitted for performance reasons.
 
 ## Design Rationale (Novelty Framing)
@@ -19,14 +27,13 @@ The core defensible claim is **domain-grounded engineering**, not necessarily a 
 - **Loss**: Perceptual/LPIPS loss is avoided during training, as VGG features hallucinate natural-image textures onto industrial images.
 
 ## Development Roadmap
-- **Module 1**: Scaffolding & Configs
-- **Module 2**: Evaluation System
-- **Module 3**: Data Pipeline
-- **Module 4**: Baseline CNN
-- **Module 5**: Training Loop
-- **Module 6**: Inference Engine
-- **Module 7**: Hybrid Architecture
-- **Module 8**: Final Validation
+- **Experiment 001**: Initial scaffolding and naive baseline.
+- **Experiment 002**: Official baseline (Sobel Edge Loss). *[COMPLETED]*
+- **Experiment 003**: Focal Frequency Loss integration.
+- **Experiment 003b**: Capacity-Matched CNN baseline (to isolate architectural gains from pure parameter count scaling).
+- **Experiment 004**: Hybrid CNN + Transformer Integration.
+- **Experiment 005**: Degradation Prompt Encoder and Image Quality Analyzer.
+- **Module 8**: Final Validation & Hackathon Submission.
 
 ## Principles
 - CLI overrides for paths only.

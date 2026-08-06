@@ -1,4 +1,4 @@
-experiment_name: "experiment_003_focal_frequency"
+experiment_name: "experiment_003b_capacity_cnn"
 seed: 42
 
 data:
@@ -17,7 +17,7 @@ model:
   architecture: "cnn"
   in_channels: 1
   out_channels: 1
-  features: 64
+  features: 128 # Increased from 64 to capacity-match the future Hybrid Model (~0.6M params)
   upscale_factor: 2
 
 training:
@@ -46,7 +46,7 @@ validation:
   every_n_epochs: 1
 
 tracking:
-  experiment_name: "experiment_003_focal_frequency"
+  experiment_name: "experiment_003b_capacity_cnn"
   save_dir: "experiments"
   
 evaluation:
