@@ -217,5 +217,5 @@ class ExperimentLogger:
 ## Next Experiment
 *(Outline what to test in the next iteration)*
 """
-        with open(os.path.join(self.exp_dir, "benchmark.md"), "w") as f:
+        with open(os.path.join(self.exp_dir, "benchmark.md"), "w", encoding="utf-8") as f:
             f.write(md_content)
