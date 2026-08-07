@@ -166,6 +166,11 @@ class ExperimentLogger:
         cv2.imwrite(f"{prefix}_visualization.png", grid)
 
     def generate_benchmark_report(self, run_stats):
+        arch = getattr(
+            self.cfg.model,
+            "architecture",
+            getattr(self.cfg.model, "type", "BaselineCNN")
+        )
         md_content = f"""# {self.exp_name} Benchmark Report
         
 | Metric | Value |
@@ -173,7 +178,7 @@ class ExperimentLogger:
 | **Date** | {run_stats.get('date', 'N/A')} |
 | **Git Commit** | {self.commit_hash} |
 | **Dataset** | {self.cfg.data.train_dir} |
-| **Architecture** | {self.cfg.model.architecture} |
+| **Architecture** | {arch} |
 | **Loss** | {run_stats.get('loss_fn', 'Charbonnier')} |
 | **Optimizer** | {self.cfg.training.optimizer} |
 | **Epochs** | {self.cfg.training.epochs} |
