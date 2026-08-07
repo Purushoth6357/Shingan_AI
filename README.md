@@ -24,14 +24,14 @@ All future experiments (Focal Frequency Loss, Hybrid architectures, Prompt Encod
 The core defensible claim is **domain-grounded engineering**, not necessarily a purely novel architecture. Every design choice (augmentation exclusions, normalization strategy, loss weighting) is justified specifically for semiconductor/wafer/SEM imagery.
 - **Augmentations**: No resizing/downsampling (to preserve pixel-to-physical mapping), no JPEG compression, no motion blur.
 - **Normalization**: Min-max [0, 1] scaling instead of ImageNet stats.
-- **Loss**: Perceptual/LPIPS loss is avoided during training, as VGG features hallucinate natural-image textures onto industrial images.
+- **Loss**: Perceptual/LPIPS loss is avoided during training (to prevent VGG hallucination of natural-image textures), but **LPIPS is strictly monitored as a mandatory evaluation metric** to ensure perceptual quality aligns with KLA session feedback.
 
 ## Development Roadmap
-- **Experiment 001**: Initial scaffolding and naive baseline.
+- **Experiment 001**: Initial scaffolding and naive baseline. *[COMPLETED]*
 - **Experiment 002**: Official baseline (Sobel Edge Loss). *[COMPLETED]*
-- **Experiment 003**: Focal Frequency Loss integration.
-- **Experiment 003b**: Capacity-Matched CNN baseline (to isolate architectural gains from pure parameter count scaling).
-- **Experiment 004**: Hybrid CNN + Transformer Integration.
+- **Experiment 003**: Focal Frequency Loss integration. *[COMPLETED]*
+- **Experiment 003b**: Capacity-Matched CNN baseline. *[COMPLETED]*
+- **Experiment 004**: Hybrid CNN + Transformer Integration. *[COMPLETED]*
 - **Experiment 005**: Degradation Prompt Encoder and Image Quality Analyzer.
 - **Module 8**: Final Validation & Hackathon Submission.
 

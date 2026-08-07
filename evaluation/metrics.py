@@ -1,7 +1,36 @@
 import torch
 from torchmetrics import Metric
 from torchmetrics.image import PeakSignalNoiseRatio, StructuralSimilarityIndexMeasure
+import lpips
 
+class LPIPSMetric(Metric):
+    is_differentiable = True
+    higher_is_better = False
+    full_state_update = False
+    
+    def __init__(self, net='alex', **kwargs):
+        super().__init__(**kwargs)
+        self.loss_fn = lpips.LPIPS(net=net)
+        for param in self.loss_fn.parameters():
+            param.requires_grad = False
+            
+        self.add_state("sum_lpips", default=torch.tensor(0.0), dist_reduce_fx="sum")
+        self.add_state("total_batches", default=torch.tensor(0.0), dist_reduce_fx="sum")
+        
+    def update(self, preds, targets):
+        preds_rgb = preds.repeat(1, 3, 1, 1)
+        targets_rgb = targets.repeat(1, 3, 1, 1)
+        
+        preds_scaled = preds_rgb * 2.0 - 1.0
+        targets_scaled = targets_rgb * 2.0 - 1.0
+        
+        batch_lpips = self.loss_fn(preds_scaled, targets_scaled).mean()
+        
+        self.sum_lpips += batch_lpips
+        self.total_batches += 1
+        
+    def compute(self):
+        return self.sum_lpips / self.total_batches if self.total_batches > 0 else torch.tensor(0.0, device=self.sum_lpips.device)
 class GradientMagnitudeCorrelation(Metric):
     """
     Computes Gradient Magnitude Correlation (GMC) between predicted and GT images.
@@ -61,7 +90,8 @@ def get_metrics(device="cpu"):
     metrics = {
         "psnr": PeakSignalNoiseRatio(data_range=1.0).to(device),
         "ssim": StructuralSimilarityIndexMeasure(data_range=1.0).to(device),
-        "gmc": GradientMagnitudeCorrelation(data_range=1.0).to(device)
+        "gmc": GradientMagnitudeCorrelation(data_range=1.0).to(device),
+        "lpips": LPIPSMetric(net='alex').to(device)
     }
     return metrics
 

@@ -9,7 +9,7 @@ from tqdm import tqdm
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from models.baseline_cnn import BaselineCNN
+from models import build_model
 from utils.config import load_config
 
 def process_image(model, img_path, device, norm_config):
@@ -83,14 +83,7 @@ def main():
 
     # Load config and model
     cfg = load_config(args.config)
-    num_blocks = getattr(cfg.model, 'num_blocks', 4)
-    model = BaselineCNN(
-        in_channels=cfg.model.in_channels,
-        out_channels=cfg.model.out_channels,
-        features=cfg.model.features,
-        upscale_factor=cfg.model.upscale_factor,
-        num_blocks=num_blocks
-    ).to(device)
+    model = build_model(cfg).to(device)
     
     checkpoint = torch.load(args.checkpoint, map_location=device)
     if 'model_state_dict' in checkpoint:

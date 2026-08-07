@@ -12,3 +12,4 @@ torchmetrics
 lpips
 pytest
 thop
+einops

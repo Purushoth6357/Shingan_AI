@@ -11,7 +11,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.config import load_config
 from datasets.dataset import ShinganDataset
-from models.baseline_cnn import BaselineCNN
+from models import build_model
 from models.losses import CharbonnierLoss, SobelEdgeLoss, HybridLoss, FocalFrequencyLoss
 from evaluation.evaluator import Evaluator
 from utils.logger import ExperimentLogger
@@ -84,14 +84,7 @@ def main():
         f.write(str(cfg.__dict__))
 
     # Model
-    num_blocks = getattr(cfg.model, 'num_blocks', 4)
-    model = BaselineCNN(
-        in_channels=cfg.model.in_channels,
-        out_channels=cfg.model.out_channels,
-        features=cfg.model.features,
-        upscale_factor=cfg.model.upscale_factor,
-        num_blocks=num_blocks
-    ).to(device)
+    model = build_model(cfg).to(device)
 
     # Loss and Optimizer
     loss_cfg = getattr(cfg.training, 'loss', None)
@@ -176,7 +169,8 @@ def main():
     print(f"Batch Size       : {cfg.data.batch_size}")
     print(f"Optimizer        : {opt_name}")
     print(f"Loss             : {'Hybrid (' + ', '.join(loss_dict.keys()) + ')' if is_hybrid else 'Charbonnier'}")
-    print(f"Model            : BaselineCNN + PixelShuffle")
+    model_type = getattr(cfg.model, 'type', 'BaselineCNN')
+    print(f"Model            : {model_type}")
     print(f"Parameters       : {num_params:,}")
     print(f"FLOPs (G)        : {flops / 1e9:.2f}" if flops > 0 else "FLOPs (G)        : N/A")
     print(f"Device           : {device}")
