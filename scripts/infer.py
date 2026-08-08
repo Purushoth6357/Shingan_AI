@@ -74,7 +74,7 @@ def main():
     parser = argparse.ArgumentParser(description="Batch Inference for a folder of images/npy files")
     parser.add_argument('--input', type=str, required=True, help="Path to input folder containing noisy images or .npy files")
     parser.add_argument('--output', type=str, required=True, help="Path to output folder to save restored files")
-    parser.add_argument('--checkpoint', type=str, required=True, help="Path to model checkpoint")
+    parser.add_argument('--weights', '--checkpoint', dest='checkpoint', type=str, required=True, help="Path to model checkpoint")
     parser.add_argument('--config', type=str, default='configs/default.yaml', help="Path to config file")
     
     args = parser.parse_args()
