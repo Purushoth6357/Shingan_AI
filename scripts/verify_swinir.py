@@ -38,8 +38,14 @@ def main():
         output = model(dummy_input)
         print("Forward pass: SUCCESS")
         print(f"Output shape: {output.shape}")
+        
+        # Backward pass
+        dummy_target = torch.randn_like(output)
+        loss = torch.nn.functional.mse_loss(output, dummy_target)
+        loss.backward()
+        print("Backward pass: SUCCESS")
     except Exception as e:
-        print("Forward pass: FAILED")
+        print("Forward/Backward pass: FAILED")
         print(e)
         return
     

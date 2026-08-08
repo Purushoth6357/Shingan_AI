@@ -85,6 +85,19 @@ def main():
 
     # Model
     model = build_model(cfg).to(device)
+    
+    # Pretrained checkpoint loading (for fine-tuning, independent of --resume)
+    pretrained_path = getattr(cfg.training, 'pretrained_checkpoint', None)
+    if pretrained_path and os.path.exists(pretrained_path):
+        print(f"Loading pretrained weights from {pretrained_path}...")
+        checkpoint = torch.load(pretrained_path, map_location=device)
+        if 'model_state_dict' in checkpoint:
+            model.load_state_dict(checkpoint['model_state_dict'], strict=False)
+        elif 'params_ema' in checkpoint:
+            model.load_state_dict(checkpoint['params_ema'], strict=False)
+        else:
+            model.load_state_dict(checkpoint, strict=False)
+        print("Pretrained weights loaded successfully.")
 
     # Loss and Optimizer
     loss_cfg = getattr(cfg.training, 'loss', None)
