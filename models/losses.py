@@ -106,6 +106,8 @@ class FocalFrequencyLoss(nn.Module):
         # --- DEBUGGING CUFFT ERROR ---
         print("="*60)
         print("Pred Shape:", pred.shape)
+        print("Pred Layout:", pred.layout)
+        print("Pred Storage Offset:", pred.storage_offset())
         print("Pred Stride:", pred.stride())
         print("Pred Contiguous:", pred.is_contiguous())
         print("Pred Dtype:", pred.dtype)
