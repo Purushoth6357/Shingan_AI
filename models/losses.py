@@ -103,8 +103,50 @@ class FocalFrequencyLoss(nn.Module):
         pred = pred.contiguous().to(dtype=torch.float32)
         gt = gt.contiguous().to(dtype=torch.float32)
         
-        freq_pred = torch.fft.fft2(pred, norm='ortho')
-        freq_gt = torch.fft.fft2(gt, norm='ortho')
+        # --- DEBUGGING CUFFT ERROR ---
+        print("="*60)
+        print("Pred Shape:", pred.shape)
+        print("Pred Stride:", pred.stride())
+        print("Pred Contiguous:", pred.is_contiguous())
+        print("Pred Dtype:", pred.dtype)
+        print("Pred Device:", pred.device)
+        print("Pred Requires grad:", pred.requires_grad)
+        print("Pred Is CUDA:", pred.is_cuda)
+        print("Pred Min:", pred.min().item())
+        print("Pred Max:", pred.max().item())
+        print("Pred Has NaN:", torch.isnan(pred).any().item())
+        print("Pred Has Inf:", torch.isinf(pred).any().item())
+        print("="*60)
+
+        # Isolation Tests
+        try:
+            print("Test 1: Random CUDA tensor FFT...")
+            torch.fft.fft2(torch.randn(pred.shape, device=pred.device, dtype=pred.dtype))
+            print("Test 1: SUCCESS")
+        except Exception as e:
+            print(f"Test 1 FAILED: {e}")
+
+        try:
+            print("Test 2: Clone and contiguous FFT...")
+            torch.fft.fft2(pred.clone().contiguous())
+            print("Test 2: SUCCESS")
+        except Exception as e:
+            print(f"Test 2 FAILED: {e}")
+
+        try:
+            print("Test 3: CPU FFT...")
+            torch.fft.fft2(pred.detach().cpu())
+            print("Test 3: SUCCESS")
+        except Exception as e:
+            print(f"Test 3 FAILED: {e}")
+        # ------------------------------
+        
+        # Temporary fallback to CPU for FFT to bypass cuFFT error during debugging
+        pred_cpu = pred.cpu()
+        gt_cpu = gt.cpu()
+        
+        freq_pred = torch.fft.fft2(pred_cpu, norm='ortho')
+        freq_gt = torch.fft.fft2(gt_cpu, norm='ortho')
         diff = freq_pred - freq_gt
         
         # Calculate dynamic focal weight matrix
@@ -112,4 +154,4 @@ class FocalFrequencyLoss(nn.Module):
         weight_matrix = weight_matrix / (torch.amax(weight_matrix, dim=(-2, -1), keepdim=True) + 1e-6)
         
         loss = torch.mean(weight_matrix * (torch.abs(diff) ** 2))
-        return loss
+        return loss.to(pred.device) # Return to original device so backward works
