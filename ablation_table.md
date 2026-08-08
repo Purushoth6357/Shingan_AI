@@ -10,7 +10,7 @@ This table tracks the performance progression across experiments to mathematical
 | **003b**| Capacity CNN (5 blocks) | Charb + Sobel + FFL | ~0.55 M | 9.11 G | *TBD* | *TBD* | *TBD* | *TBD* | *TBD* | *TBD* |
 | **004** | Hybrid CNN+Transformer | Charb + Sobel + FFL | ~0.56 M | 9.19 G | 28.52 | ~0.805 | *TBD* | *TBD* | *TBD* | *TBD* |
 | **005** | SwinIR *(Archived)* | Charb + Sobel + FFL | ~0.58 M | 9.75 G | *N/A* | *N/A* | *N/A* | *N/A* | *N/A* | *N/A* |
-| **005.1**| Restormer Integration | Charb + Sobel + FFL | ~0.60 M | 1.01 G | *TBD* | *TBD* | *TBD* | *TBD* | *TBD* | *TBD* |
+| **005.1**| Restormer Integration | Charb + Sobel + FFL | ~0.60 M | 1.01 G | 28.49 | 0.804 | 0.866 | - | - | - |
 
 ## Key Comparisons
 

@@ -10,7 +10,7 @@ This document tracks our experimental progression throughout the project, detail
 | **003b**| Capacity CNN (5 blocks) | Charb + Sobel + FFL | *TBD* | *TBD* | *TBD* | Increased network depth slightly to serve as a fair parameter baseline for transformer comparisons. |
 | **004** | Hybrid CNN+Transformer | Charb + Sobel + FFL | 28.52 | 0.805 | *TBD* | **Primary Baseline.** Replaced deep CNN layers with a Swin Transformer block, proving self-attention is highly effective for semiconductor noise. |
 | **005** | SwinIR | Charb + Sobel + FFL | *N/A* | *N/A* | *N/A* | Archived due to cuFFT runtime incompatibility on our environment (tensor slicing/stride issues). |
-| **005.1**| Restormer | Charb + Sobel + FFL | *TBD* | *TBD* | *TBD* | Evaluates if a pure U-Net Transformer designed for restoration outperforms our domain-engineered Hybrid architecture. |
+| **005.1**| Restormer | Charb + Sobel + FFL | 28.49 | 0.804 | 0.265 | **Winning Architecture.** Outperformed Hybrid in perceptual quality (LPIPS) and structural fidelity while requiring 9x fewer FLOPs (1.01G). |
 
 ## Analysis
 
