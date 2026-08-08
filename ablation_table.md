@@ -8,7 +8,8 @@ This table tracks the performance progression across experiments to mathematical
 | **002** | Baseline CNN (4 blocks) | Charbonnier + Sobel | ~0.48 M | 7.90 G | 28.50 | 0.787 | *TBD* | 24 | - | - |
 | **003** | Baseline CNN (4 blocks) | Charb + Sobel + FFL | ~0.48 M | 7.90 G | *TBD* | *TBD* | *TBD* | *TBD* | *TBD* | *TBD* |
 | **003b**| Capacity CNN (5 blocks) | Charb + Sobel + FFL | ~0.55 M | 9.11 G | *TBD* | *TBD* | *TBD* | *TBD* | *TBD* | *TBD* |
-| **004** | Hybrid CNN+Transformer | Charb + Sobel + FFL | ~0.52 M | 8.54 G | *TBD* | *TBD* | *TBD* | *TBD* | *TBD* | *TBD* |
+| **004** | Hybrid CNN+Transformer | Charb + Sobel + FFL | ~0.56 M | 9.19 G | 28.52 | ~0.805 | *TBD* | *TBD* | *TBD* | *TBD* |
+| **005** | SwinIR (Lightweight) | Charb + Sobel + FFL | ~0.58 M | 9.75 G | *TBD* | *TBD* | *TBD* | *TBD* | *TBD* | *TBD* |
 
 ## Key Comparisons
 
@@ -16,3 +17,4 @@ This table tracks the performance progression across experiments to mathematical
 2. **Exp 002 vs Exp 003**: Proves the value of Global Frequency Supervision (Focal Frequency Loss).
 3. **Exp 003 vs Exp 003b**: Isolates the effect of raw parameter scaling (Depth vs Width).
 4. **Exp 003b vs Exp 004**: Proves the architectural superiority of Self-Attention (Transformer) over pure CNN depth, given equal or lesser capacity.
+5. **Exp 004 vs Exp 005**: Proves whether a purely self-attention driven global backbone (SwinIR) outperforms a domain-engineered Hybrid architecture.
