@@ -2,6 +2,7 @@
 from .hybrid_cnn_transformer import HybridCNNTransformer
 from .baseline_cnn import BaselineCNN
 from .network_swinir import SwinIR
+from .network_restormer import Restormer
 
 def build_model(cfg):
     model_type = getattr(cfg.model, 'type', 'BaselineCNN')
@@ -29,6 +30,18 @@ def build_model(cfg):
             upscale=getattr(cfg.model, 'upscale_factor', 2),
             upsampler=getattr(cfg.model, 'upsampler', 'pixelshuffle'),
             resi_connection=getattr(cfg.model, 'resi_connection', '1conv')
+        )
+    elif model_type == 'Restormer':
+        return Restormer(
+            inp_channels=getattr(cfg.model, 'in_chans', 1),
+            out_channels=getattr(cfg.model, 'out_channels', 1),
+            dim=getattr(cfg.model, 'dim', 12),
+            num_blocks=getattr(cfg.model, 'num_blocks', [2, 2, 2, 2]),
+            num_refinement_blocks=getattr(cfg.model, 'num_refinement_blocks', 2),
+            heads=getattr(cfg.model, 'heads', [1, 2, 4, 8]),
+            ffn_expansion_factor=getattr(cfg.model, 'ffn_expansion_factor', 2.0),
+            bias=getattr(cfg.model, 'bias', False),
+            LayerNorm_type=getattr(cfg.model, 'LayerNorm_type', 'WithBias')
         )
     else:
         raise ValueError(f"Unknown model type: {model_type}")

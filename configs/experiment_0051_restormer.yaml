@@ -1,0 +1,63 @@
+experiment_name: "experiment_0051_restormer"
+seed: 42
+
+data:
+  train_dir: "datasets/train"
+  val_dir: "datasets/train"
+  test_dir: "datasets/train"
+  train_split: "datasets/splits/train.txt"
+  val_split: "datasets/splits/val.txt"
+  test_split: "datasets/splits/test.txt"
+  batch_size: 16
+  num_workers: 4
+  
+  normalization:
+    method: "minmax"
+    min: -0.0026
+    max: 1.3258
+
+model:
+  type: "Restormer"
+  in_chans: 1
+  out_channels: 1
+  dim: 12
+  num_blocks: [2, 2, 2, 2]
+  num_refinement_blocks: 2
+  heads: [1, 2, 4, 8]
+  ffn_expansion_factor: 2.0
+  bias: False
+  LayerNorm_type: 'WithBias'
+  upscale_factor: 2
+
+training:
+  epochs: 50
+  batch_size: 16
+  learning_rate: 0.0001
+  weight_decay: 0.00001
+  optimizer: "adamw"
+  log_interval: 10
+  
+  loss:
+    type: "hybrid"
+    components:
+      charbonnier:
+        weight: 1.0
+      sobel:
+        weight: 0.1
+      focal_frequency:
+        weight: 0.1
+  
+  early_stopping:
+    enabled: false
+    patience: 10
+    
+validation:
+  every_n_epochs: 1
+
+tracking:
+  experiment_name: "experiment_0051_restormer"
+  save_dir: "experiments"
+  
+evaluation:
+  metrics: ["psnr", "ssim", "gmc", "lpips"]
+  device: "cuda"
