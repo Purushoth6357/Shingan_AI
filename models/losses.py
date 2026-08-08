@@ -100,8 +100,8 @@ class FocalFrequencyLoss(nn.Module):
     def forward(self, pred, gt):
         # Workaround for cuFFT CUFFT_INTERNAL_ERROR which can occur if tensors are not contiguous
         # or if they are float16 and AMP interacts poorly with certain cuFFT versions.
-        pred = pred.contiguous().float()
-        gt = gt.contiguous().float()
+        pred = pred.contiguous().to(dtype=torch.float32)
+        gt = gt.contiguous().to(dtype=torch.float32)
         
         freq_pred = torch.fft.fft2(pred, norm='ortho')
         freq_gt = torch.fft.fft2(gt, norm='ortho')
