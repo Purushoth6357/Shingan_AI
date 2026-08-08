@@ -1,0 +1,13 @@
+{
+    "dataset_scale": 2,
+    "input_resolution": [
+        1,
+        128,
+        128
+    ],
+    "target_resolution": [
+        1,
+        256,
+        256
+    ]
+}

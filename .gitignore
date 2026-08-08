@@ -11,3 +11,5 @@ datasets/test/
 datasets/real_dataset/
 datasets/hackathon_data/
 .DS_Store
+
+SwinIR/

@@ -13,3 +13,4 @@ lpips
 pytest
 thop
 einops
+timm

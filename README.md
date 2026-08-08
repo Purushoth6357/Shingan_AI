@@ -40,3 +40,7 @@ The core defensible claim is **domain-grounded engineering**, not necessarily a 
 - PyTorch (No Lightning).
 - Device fallback logic automatically detects CUDA vs CPU.
 - Pinned requirements for strict reproducibility.
+
+## Experiment 005
+
+Experiment 005 integrates the official SwinIR architecture (MIT License) into our training and evaluation framework. This serves as a benchmark against our Hybrid model.
